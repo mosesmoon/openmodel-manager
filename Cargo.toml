@@ -1,7 +1,6 @@
 [workspace]
 resolver = "2"
-# app/src-tauri is added once the desktop app is scaffolded.
-members = ["crates/core", "crates/cli"]
+members = ["crates/core", "crates/cli", "app/src-tauri"]
 
 [workspace.package]
 version = "0.1.0"

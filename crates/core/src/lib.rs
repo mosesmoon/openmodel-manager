@@ -15,6 +15,7 @@ pub mod gguf;
 pub mod hardware;
 pub mod hf;
 pub mod library;
+pub mod llm;
 pub mod server;
 pub mod tiering;
 pub mod tools;

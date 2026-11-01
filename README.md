@@ -15,19 +15,24 @@ An open-source, cross-platform local AI model manager: hardware detection, GPU/R
 
 | 模組 | 狀態 |
 |---|---|
-| `openmodel-core`：硬體偵測、GGUF 解析、分層規劃、HF、續傳下載、引擎安裝、llama-server / sd-server 管理、對話工具、Agent 沙箱 | 完成，55 個單元測試 |
+| `openmodel-core`：硬體偵測、GGUF 解析、分層規劃、HF、續傳下載、引擎安裝、llama-server / sd-server 管理、OpenAI 相容串流與工具迴圈、對話工具、Agent 沙箱 | 完成，58 個單元測試 |
 | `openmodel` CLI | 完成（`hw` `gguf` `catalog` `plan` `hf` `models` `engine` `serve`） |
-| Tauri 2 桌面程式 | 尚未開始 |
+| Tauri 2 桌面程式（`app/`）：概覽、模型、執行、對話、畫圖、影片、Agent、設定；繁中 / 英文 | 可建置；尚未在真實模型上完整試用 |
 
 詳見 [docs/STATUS.md](docs/STATUS.md)。
 
 ## 建置 / Build
 
-需要 Rust stable（1.80+）。
+需要 Rust stable（1.80+）與 Node.js 20+。Linux 另需 `libwebkit2gtk-4.1-dev`（見 [Tauri 前置需求](https://v2.tauri.app/start/prerequisites/)）。
 
 ```bash
+cd app && npm ci && npm run build && cd ..   # 桌面程式的前端（cargo 編譯 app 時需要 app/dist）
 cargo test
-cargo build --release
+cargo build --release -p openmodel-cli       # 只要 CLI
+
+cd app
+npx tauri dev                                # 開發模式
+npx tauri build                              # 產生安裝檔（target/release/bundle/）
 ```
 
 ## CLI 範例

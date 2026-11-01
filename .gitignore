@@ -6,3 +6,6 @@ dist/
 
 # Local data when running with OPENMODEL_HOME inside the repo
 .openmodel/
+
+# Tauri generated schemas
+app/src-tauri/gen/

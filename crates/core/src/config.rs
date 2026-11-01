@@ -48,6 +48,18 @@ pub struct Settings {
     pub gpu_override: Option<GpuOverride>,
     /// Extra llama-server args per model key (file name).
     pub custom_args: HashMap<String, String>,
+    /// Remote OpenAI-compatible endpoints the user added (name -> endpoint).
+    /// API keys are stored here in plain text; the UI says so.
+    pub endpoints: Vec<NamedEndpoint>,
+    /// Folder the Agent page works in.
+    pub agent_workspace: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct NamedEndpoint {
+    pub name: String,
+    #[serde(flatten)]
+    pub endpoint: crate::llm::Endpoint,
 }
 
 impl Default for Settings {
@@ -70,6 +82,8 @@ impl Default for Settings {
             backend: None,
             gpu_override: None,
             custom_args: HashMap::new(),
+            endpoints: vec![],
+            agent_workspace: None,
         }
     }
 }

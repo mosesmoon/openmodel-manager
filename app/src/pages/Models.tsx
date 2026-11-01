@@ -1,0 +1,255 @@
+import { useEffect, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { api, CatalogEntry, gb, HfModel, LocalModel, MediaModel, RepoListing } from "../api";
+import { useApp } from "../App";
+import { useI18n } from "../i18n";
+
+type Tab = "recommended" | "installed" | "media" | "search";
+
+export default function Models() {
+  const { t } = useI18n();
+  const [tab, setTab] = useState<Tab>("recommended");
+  return (
+    <>
+      <h1>{t("nav.models")}</h1>
+      <div className="tabs">
+        {(["recommended", "installed", "media", "search"] as Tab[]).map((x) => (
+          <button key={x} className={"tab" + (x === tab ? " on" : "")} onClick={() => setTab(x)}>{t(`models.${x}`)}</button>
+        ))}
+      </div>
+      {tab === "recommended" && <Recommended />}
+      {tab === "installed" && <Installed />}
+      {tab === "media" && <Media />}
+      {tab === "search" && <Search />}
+    </>
+  );
+}
+
+function Recommended() {
+  const { t } = useI18n();
+  const { track, fail } = useApp();
+  const [list, setList] = useState<CatalogEntry[] | null>(null);
+  const [choice, setChoice] = useState<Record<string, string>>({});
+  const [vision, setVision] = useState(true);
+  const load = () => api.catalog().then(setList, fail);
+  useEffect(() => { load(); }, []);
+  if (!list) return <p className="muted">{t("common.loading")}</p>;
+  return (
+    <>
+      <label className="check" style={{ marginBottom: 12 }}>
+        <input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />
+        {t("models.with_vision")}
+      </label>
+      <div className="grid">
+        {list.map((m) => {
+          const q = choice[m.id] ?? m.recommended ?? m.quants[0];
+          const fit = m.fits.find((f) => f.quant === q);
+          return (
+            <div key={m.id} className="card stack">
+              <div>
+                <div className="row spread">
+                  <h3 style={{ margin: 0 }}>{m.name}</h3>
+                  {fit && <span className={"pill " + fit.tier}>{fit.tier_label}</span>}
+                </div>
+                <div className="muted small">{m.org} · {m.release} · {m.params_b}B{m.active_b ? ` (${m.active_b}B active)` : ""}</div>
+              </div>
+              <div className="small">{m.description}</div>
+              <div className="row">{m.tags.map((x) => <span key={x} className="pill">{x}</span>)}</div>
+              <div className="row">
+                <select value={q} onChange={(e) => setChoice({ ...choice, [m.id]: e.target.value })}>
+                  {m.fits.map((f) => (
+                    <option key={f.quant} value={f.quant}>
+                      {f.quant} · {gb(f.size_bytes)}{f.quant === m.recommended ? " ★" : ""}{f.installed ? " ✓" : ""}
+                    </option>
+                  ))}
+                </select>
+                {fit && <span className="muted small">{t("models.est")} {fit.est_tps.toFixed(0)} tok/s · {t("models.ctx")} {fit.ctx / 1024}K</span>}
+              </div>
+              {fit && <SplitBar gpu={fit.gpu_bytes} ram={fit.ram_bytes} disk={fit.disk_bytes} />}
+              <div className="row">
+                {fit?.installed ? (
+                  <span className="pill fast">{t("common.installed")}</span>
+                ) : (
+                  <button
+                    className="btn primary"
+                    onClick={() => api.hfDownload(m.repo, q, vision && m.vision).then((id) => track(id, `${m.name} ${q}`, () => load()), fail)}
+                  >
+                    {t("common.download")} {fit ? gb(fit.size_bytes) : ""}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+export function SplitBar({ gpu, ram, disk }: { gpu: number; ram: number; disk: number }) {
+  const { t } = useI18n();
+  const total = Math.max(1, gpu + ram + disk);
+  return (
+    <div className="stack" style={{ gap: 4 }}>
+      <div className="split">
+        <div className="g" style={{ width: `${(gpu / total) * 100}%` }} />
+        <div className="r" style={{ width: `${(ram / total) * 100}%` }} />
+        <div className="d" style={{ width: `${(disk / total) * 100}%` }} />
+      </div>
+      <div className="muted small">
+        {t("run.gpu")} {gb(gpu)} · {t("run.ram")} {gb(ram)}{disk > 0 ? ` · ${t("run.disk")} ${gb(disk)}` : ""}
+      </div>
+    </div>
+  );
+}
+
+function Installed() {
+  const { t } = useI18n();
+  const { go, fail } = useApp();
+  const [list, setList] = useState<LocalModel[] | null>(null);
+  const load = () => api.library().then(setList, fail);
+  useEffect(() => { load(); }, []);
+  const importFile = async () => {
+    const p = await open({ multiple: false, filters: [{ name: "GGUF", extensions: ["gguf"] }] });
+    if (typeof p === "string") api.libraryImport(p).then(load, fail);
+  };
+  const remove = (m: LocalModel) => {
+    if (!m.external && !confirm(t("models.remove_confirm"))) return;
+    api.libraryRemove(m.path).then(load, fail);
+  };
+  return (
+    <>
+      <div className="row" style={{ marginBottom: 12 }}>
+        <button className="btn" onClick={importFile}>{t("models.import")}</button>
+        <span className="muted small">{t("models.import_hint")}</span>
+      </div>
+      {list && list.length === 0 && <p className="muted">{t("models.empty")}</p>}
+      {list && list.length > 0 && (
+        <div className="card">
+          <table>
+            <tbody>
+              {list.map((m) => (
+                <tr key={m.path}>
+                  <td>
+                    <div>{m.name}</div>
+                    <div className="muted small ellipsis" style={{ maxWidth: 520 }} title={m.path}>{m.path}</div>
+                  </td>
+                  <td>{m.quant ?? ""}</td>
+                  <td>{gb(m.size_bytes)}</td>
+                  <td>{m.mmproj && <span className="pill">vision</span>} {m.external && <span className="pill">{t("models.external")}</span>}</td>
+                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    <button className="btn sm primary" onClick={() => go("run", m.path)}>{t("models.run")}</button>{" "}
+                    <button className="btn sm" onClick={() => revealItemInDir(m.path)}>{t("common.open_folder")}</button>{" "}
+                    <button className="btn sm danger" onClick={() => remove(m)}>{t("common.remove")}</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
+
+function Media() {
+  const { t } = useI18n();
+  const { track, fail, go } = useApp();
+  const [list, setList] = useState<MediaModel[] | null>(null);
+  const [choice, setChoice] = useState<Record<string, string>>({});
+  const load = () => api.mediaModels().then(setList, fail);
+  useEffect(() => { load(); }, []);
+  if (!list) return <p className="muted">{t("common.loading")}</p>;
+  return (
+    <div className="grid">
+      {list.map((m) => {
+        const q = choice[m.id] ?? m.default_quant;
+        const have = m.installed.includes(q);
+        return (
+          <div key={m.id} className="card stack">
+            <div className="row spread">
+              <h3 style={{ margin: 0 }}>{m.name}</h3>
+              <span className="pill">{m.kind === "image" ? t("nav.image") : t("nav.video")}</span>
+            </div>
+            <div className="row">
+              {m.edit && <span className="pill">edit</span>}
+              {m.image_to_video && <span className="pill">image→video</span>}
+              {m.hd && <span className="pill">720P</span>}
+            </div>
+            <div className="row">
+              <select value={q} onChange={(e) => setChoice({ ...choice, [m.id]: e.target.value })}>
+                {m.quants.map((x) => <option key={x} value={x}>{x}{m.installed.includes(x) ? " ✓" : ""}</option>)}
+              </select>
+              {have ? (
+                <button className="btn" onClick={() => go(m.kind, m.id)}>{m.kind === "image" ? t("nav.image") : t("nav.video")}</button>
+              ) : (
+                <button className="btn primary" onClick={() => api.mediaDownload(m.id, q).then((id) => track(id, `${m.name} ${q}`, () => load()), fail)}>{t("common.download")}</button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function Search() {
+  const { t } = useI18n();
+  const { track, fail } = useApp();
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [results, setResults] = useState<HfModel[]>([]);
+  const [open, setOpen] = useState<string | null>(null);
+  const [listing, setListing] = useState<RepoListing | null>(null);
+  const [vision, setVision] = useState(true);
+
+  const search = () => {
+    if (!q.trim()) return;
+    setBusy(true);
+    api.hfSearch(q.trim()).then(setResults, fail).finally(() => setBusy(false));
+  };
+  const expand = (repo: string) => {
+    if (open === repo) return setOpen(null);
+    setOpen(repo);
+    setListing(null);
+    api.hfListing(repo).then(setListing, fail);
+  };
+  return (
+    <>
+      <div className="row" style={{ marginBottom: 12 }}>
+        <input type="text" className="grow" style={{ maxWidth: 420 }} placeholder={t("models.search_ph")} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()} />
+        <button className="btn primary" disabled={busy} onClick={search}>{t("models.search")}</button>
+        <label className="check small"><input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />{t("models.with_vision")}</label>
+      </div>
+      {results.map((r) => (
+        <div key={r.id} className="card">
+          <div className="row spread" style={{ cursor: "pointer" }} onClick={() => expand(r.id)}>
+            <b>{r.id}</b>
+            <span className="muted small">↓ {r.downloads.toLocaleString()} · ♥ {r.likes}</span>
+          </div>
+          {open === r.id && (
+            <div style={{ marginTop: 10 }}>
+              {!listing ? <span className="muted">{t("common.loading")}</span> : (
+                <table>
+                  <tbody>
+                    {listing.quants.map((g) => (
+                      <tr key={g.quant}>
+                        <td>{g.quant}</td>
+                        <td>{gb(g.total_bytes)}</td>
+                        <td className="muted small">{g.files.length > 1 ? `${g.files.length} files` : g.files[0]?.path}</td>
+                        <td style={{ textAlign: "right" }}>
+                          <button className="btn sm primary" onClick={() => api.hfDownload(r.id, g.quant, vision && listing.mmproj.length > 0).then((id) => track(id, `${r.id} ${g.quant}`), fail)}>{t("common.download")}</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}

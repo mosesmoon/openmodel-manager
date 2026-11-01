@@ -19,8 +19,16 @@
 | `tools` | 審批閘門（後端強制、本次 / 本對話總是允許 / 拒絕）、計算機（evalexpr，無程式執行）、Bing RSS 搜尋、網頁擷取（拒絕本機與私有網段，逐跳檢查轉址）、檔案與指令工具 | 7 |
 | `agent` | 工作資料夾沙箱（解析 `..` 與 symlink 後判斷）、11 個工具的 schema、資料夾外讀寫與 `run_command` / `delete_path` 一律詢問 | 5 |
 | `library` | 掃描本機模型（分卷只列一次、自動配對 mmproj）、登記外部模型（不複製、移除時不刪檔） | 1 |
+| `llm` | OpenAI 相容串流（SSE，含 `reasoning_content`、分段 tool call、usage / tok/s）；工具迴圈（拒絕的工具以結果回報給模型、可取消）；`/models` 列表；本機與遠端 endpoint 共用 | 3 |
 
 `crates/cli`：`openmodel hw | gguf | catalog | plan | hf search/files/download | models | engine list/install/import | serve`。
+
+## 桌面程式（`app/`）
+
+- `app/src-tauri/src/lib.rs`：33 個 Tauri command，直接包 core。下載 / 安裝 / 影片是背景 job，透過 `progress`、`job-done` 事件回報、可取消；伺服器輸出走 `server` 事件；對話串流走 `chat` 事件；工具審批走 `approval` 事件，前端只能回答正在等待的請求（`approval_resolve`），無法直接執行受保護的工具。關閉視窗時會停掉 llama-server / sd-server。
+- `app/src`（React + Vite + TS）：概覽（硬體、即時 VRAM、VRAM 溢出警告、伺服器狀態）、模型（推薦含每個量化的預估速度與 GPU/RAM/硬碟分配、已安裝、畫圖 / 影片模型、HF 搜尋）、執行（配置計畫、實際指令、自訂參數每模型記住、載入進度、log、崩潰原因）、對話（本機或遠端 API、工具開關、附加圖片、思考過程、工具呼叫與結果、審批卡片）、畫圖、影片、Agent（工作資料夾、步驟清單、審批）、設定（資料夾、引擎安裝 / 匯入 / 移除、偏好後端、HF 鏡像與 token、GitHub 前綴、LAN、連接埠、保留記憶體、手動 GPU、遠端 API）。
+- i18n：`app/src/i18n.tsx`，繁中為預設，英文完整對應（缺字會在型別檢查時報錯）。
+- 已驗證：`tauri build --debug --no-bundle` 在 Windows 建置成功並能啟動；用模擬後端在瀏覽器跑過全部 8 頁、一輪含工具呼叫的對話、一次 Agent 審批。**尚未**用真的引擎與模型在 app 裡完整跑過。
 
 ## 尚未驗證（需要使用者在測試機上跑）
 
@@ -40,7 +48,7 @@ openmodel serve <models_dir>/unsloth__gpt-oss-20b-GGUF/gpt-oss-20b-Q4_K_M.gguf -
 
 ## 下一步
 
-1. **Tauri 2 桌面程式**（`app/src-tauri` + React/Vite/TS）：概覽、模型（推薦 / 已安裝 / 畫圖影片 / HF 搜尋）、執行、對話、畫圖、影片、Agent、設定；i18n zh-TW / en；全新 UI 設計。Tauri command 直接包 core 的函式，事件轉發 `ServerEvent` 與下載進度；審批請求以事件送前端、`resolve` 由前端呼叫。
-2. **對話 / Agent 的 LLM 迴圈**：OpenAI 相容串流客戶端（本機 llama-server 與雲端供應商共用），工具呼叫最多 12 輪 / Agent 150 輪。
-3. **CI**：`.github/workflows/ci.yml` 已有 `cargo test`（Windows / Ubuntu / macOS）；加上 `tauri build`。
+1. **實機試用桌面程式**：安裝引擎 → 下載模型 → 執行 → 對話 / Agent；畫圖與影片需要 sd.cpp 引擎與模型。
+2. 對話訊息目前以純文字顯示；加 Markdown 與程式碼區塊渲染。對話紀錄尚未存檔。
+3. **CI**：`ci.yml` 已加上前端建置、Linux WebKit 套件與三平台 `tauri build`（上傳安裝檔為 artifact），尚未在 GitHub 上實際跑過。
 4. Phase 2：computer use（`xcap` + `enigo`）、附件解析（PDF / DOCX / PPTX / XLSX）、LTX-2.3 與 MiniMax-H3 影片模型（元件參數待確認）。
