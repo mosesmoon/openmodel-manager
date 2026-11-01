@@ -1,0 +1,32 @@
+[package]
+name = "openmodel-core"
+description = "UI-agnostic core of OpenModel-Manager: hardware detection, GGUF parsing, offload planning, engine/model management"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+futures-util.workspace = true
+reqwest.workspace = true
+tracing.workspace = true
+sysinfo = "0.33"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+flate2 = "1"
+tar = "0.4"
+globset = "0.4"
+directories = "6"
+which = "7"
+regex = "1"
+uuid = { version = "1", features = ["v4"] }
+evalexpr = "12"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+base64 = "0.22"
+
+[dev-dependencies]
+tempfile = "3"

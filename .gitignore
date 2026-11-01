@@ -1,0 +1,8 @@
+/target/
+node_modules/
+dist/
+*.zip
+*.part
+
+# Local data when running with OPENMODEL_HOME inside the repo
+.openmodel/

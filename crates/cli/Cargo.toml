@@ -1,0 +1,19 @@
+[package]
+name = "openmodel-cli"
+description = "Command-line front end of OpenModel-Manager (headless testing on servers)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "openmodel"
+path = "src/main.rs"
+
+[dependencies]
+openmodel-core.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+clap = { version = "4", features = ["derive"] }

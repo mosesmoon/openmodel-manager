@@ -1,0 +1,509 @@
+{
+ "version": 1,
+ "models": [
+  {
+   "id": "qwen3.8-flash-next",
+   "name": "Qwen3.8 Flash-Next",
+   "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+   "release": "2026-08",
+   "params_b": 180,
+   "active_b": 6,
+   "layers": 48,
+   "kv_layers": 12,
+   "kv_heads": 2,
+   "head_dim": 256,
+   "experts": 512,
+   "experts_used": 10,
+   "ctx_max": 262144,
+   "vision": true,
+   "quants": [
+    "UD-Q2_K_XL",
+    "UD-Q3_K_XL",
+    "UD-Q4_K_XL"
+   ],
+   "size_gb": {
+    "UD-Q2_K_XL": 52,
+    "UD-Q3_K_XL": 66,
+    "UD-Q4_K_XL": 82
+   },
+   "org": "Qwen",
+   "tags": [
+    "chat",
+    "code",
+    "vision",
+    "reasoning"
+   ],
+   "desc": {
+    "zh-TW": "180B 總參數的 MoE，每個 token 只用 6B；支援影像輸入。需要很大的記憶體。",
+    "en": "180B-parameter MoE with 6B active per token; accepts images. Needs a lot of memory."
+   }
+  },
+  {
+   "id": "qwen3.8-27b",
+   "name": "Qwen3.8 27B",
+   "repo": "unsloth/Qwen3.8-27B-GGUF",
+   "release": "2026-08",
+   "params_b": 27,
+   "layers": 64,
+   "kv_layers": 16,
+   "kv_heads": 4,
+   "head_dim": 256,
+   "ctx_max": 262144,
+   "vision": true,
+   "quants": [
+    "UD-Q2_K_XL",
+    "UD-Q3_K_XL",
+    "UD-Q4_K_XL",
+    "UD-Q5_K_XL",
+    "UD-Q6_K_XL",
+    "Q8_0"
+   ],
+   "org": "Qwen",
+   "tags": [
+    "chat",
+    "code",
+    "vision",
+    "reasoning"
+   ],
+   "desc": {
+    "zh-TW": "27B 稠密模型，綜合能力均衡，支援影像輸入；24 GB 顯示卡可全部放進 GPU。",
+    "en": "Balanced 27B dense model with image input; fits fully on a 24 GB GPU."
+   }
+  },
+  {
+   "id": "muse-glimmer-30b",
+   "name": "Muse Glimmer 30B",
+   "repo": "unsloth/Muse-Glimmer-30B-GGUF",
+   "release": "2026-08",
+   "params_b": 30,
+   "layers": 64,
+   "kv_heads": 8,
+   "head_dim": 128,
+   "ctx_max": 131072,
+   "vision": true,
+   "quants": [
+    "UD-Q2_K_XL",
+    "UD-Q3_K_XL",
+    "UD-Q4_K_XL",
+    "UD-Q6_K_XL",
+    "UD-Q8_K_XL"
+   ],
+   "size_gb": {
+    "UD-Q2_K_XL": 11.5,
+    "UD-Q3_K_XL": 13.5,
+    "UD-Q4_K_XL": 16.5,
+    "UD-Q6_K_XL": 21,
+    "UD-Q8_K_XL": 32
+   },
+   "org": "Meta",
+   "tags": [
+    "chat",
+    "code",
+    "vision"
+   ],
+   "desc": {
+    "zh-TW": "30B 稠密模型，工具呼叫與本機代理任務表現好，支援影像輸入。",
+    "en": "30B dense model that is good at tool calling and local agent work; accepts images."
+   }
+  },
+  {
+   "id": "qwen3.6-35b-a3b",
+   "name": "Qwen3.6 35B-A3B",
+   "repo": "unsloth/Qwen3.6-35B-A3B-GGUF",
+   "release": "2026-04",
+   "params_b": 35,
+   "active_b": 3,
+   "layers": 40,
+   "kv_layers": 10,
+   "kv_heads": 2,
+   "head_dim": 256,
+   "experts": 256,
+   "experts_used": 8,
+   "ctx_max": 262144,
+   "vision": true,
+   "quants": [
+    "UD-Q2_K_XL",
+    "UD-Q3_K_XL",
+    "UD-Q4_K_XL",
+    "UD-Q5_K_XL",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "org": "Qwen",
+   "tags": [
+    "chat",
+    "code",
+    "vision"
+   ],
+   "desc": {
+    "zh-TW": "35B MoE，每個 token 只用 3B，生成很快，適合寫程式，支援影像輸入。",
+    "en": "35B MoE with 3B active per token: very fast, strong at coding, accepts images."
+   }
+  },
+  {
+   "id": "qwen3.6-27b",
+   "name": "Qwen3.6 27B",
+   "repo": "unsloth/Qwen3.6-27B-GGUF",
+   "release": "2026-04",
+   "params_b": 27,
+   "layers": 64,
+   "kv_layers": 16,
+   "kv_heads": 4,
+   "head_dim": 256,
+   "ctx_max": 262144,
+   "vision": true,
+   "quants": [
+    "UD-Q2_K_XL",
+    "UD-Q3_K_XL",
+    "UD-Q4_K_XL",
+    "UD-Q5_K_XL",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "org": "Qwen",
+   "tags": [
+    "chat",
+    "reasoning",
+    "vision"
+   ],
+   "desc": {
+    "zh-TW": "27B 稠密模型，適合長篇寫作與多步推理，支援影像輸入。",
+    "en": "27B dense model for long-form writing and multi-step reasoning; accepts images."
+   }
+  },
+  {
+   "id": "gemma-4-26b-a4b",
+   "name": "Gemma 4 26B-A4B",
+   "repo": "unsloth/gemma-4-26B-A4B-it-GGUF",
+   "release": "2026-04",
+   "params_b": 26,
+   "active_b": 4,
+   "layers": 30,
+   "kv_layers": 5,
+   "kv_heads": 8,
+   "head_dim": 256,
+   "experts": 128,
+   "experts_used": 8,
+   "ctx_max": 262144,
+   "vision": true,
+   "quants": [
+    "UD-Q3_K_XL",
+    "UD-Q4_K_XL",
+    "Q4_K_M",
+    "UD-Q5_K_XL",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "org": "Google",
+   "tags": [
+    "chat",
+    "vision"
+   ],
+   "desc": {
+    "zh-TW": "26B MoE，每個 token 用 4B，多語言與看圖能力佳。",
+    "en": "26B MoE with 4B active; good multilingual and image understanding."
+   }
+  },
+  {
+   "id": "gemma-4-31b",
+   "name": "Gemma 4 31B",
+   "repo": "unsloth/gemma-4-31B-it-GGUF",
+   "release": "2026-04",
+   "params_b": 31,
+   "layers": 60,
+   "kv_layers": 10,
+   "kv_heads": 16,
+   "head_dim": 128,
+   "ctx_max": 262144,
+   "vision": true,
+   "quants": [
+    "UD-Q2_K_XL",
+    "UD-Q3_K_XL",
+    "UD-Q4_K_XL",
+    "Q4_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "org": "Google",
+   "tags": [
+    "chat",
+    "vision",
+    "reasoning"
+   ],
+   "desc": {
+    "zh-TW": "Gemma 4 系列最大的稠密模型，適合長文件與看圖。",
+    "en": "Largest dense Gemma 4 model; suited to long documents and images."
+   }
+  },
+  {
+   "id": "gemma-4-12b",
+   "name": "Gemma 4 12B",
+   "repo": "unsloth/gemma-4-12b-it-GGUF",
+   "release": "2026-04",
+   "params_b": 12,
+   "layers": 48,
+   "kv_layers": 8,
+   "kv_heads": 8,
+   "head_dim": 256,
+   "ctx_max": 131072,
+   "vision": true,
+   "quants": [
+    "Q4_K_M",
+    "UD-Q4_K_XL",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "org": "Google",
+   "tags": [
+    "chat",
+    "vision"
+   ],
+   "desc": {
+    "zh-TW": "12B 稠密模型，12–16 GB 顯示卡就能順跑，支援影像輸入。",
+    "en": "12B dense model that runs well on 12–16 GB GPUs; accepts images."
+   }
+  },
+  {
+   "id": "gemma-4-e4b",
+   "name": "Gemma 4 E4B",
+   "repo": "unsloth/gemma-4-E4B-it-GGUF",
+   "release": "2026-04",
+   "params_b": 8,
+   "layers": 42,
+   "kv_layers": 7,
+   "kv_heads": 2,
+   "head_dim": 256,
+   "ctx_max": 131072,
+   "vision": true,
+   "quants": [
+    "Q4_K_M",
+    "UD-Q4_K_XL",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "size_gb": {
+    "Q4_K_M": 5.0,
+    "UD-Q4_K_XL": 5.1,
+    "Q6_K": 6.4,
+    "Q8_0": 8.2
+   },
+   "org": "Google",
+   "tags": [
+    "chat",
+    "vision"
+   ],
+   "desc": {
+    "zh-TW": "小型模型（約 4B 有效參數），筆電與內顯也能用，支援影像輸入。",
+    "en": "Small model (about 4B effective) for laptops and iGPUs; accepts images."
+   }
+  },
+  {
+   "id": "qwen3.5-122b-a10b",
+   "name": "Qwen3.5 122B-A10B",
+   "repo": "unsloth/Qwen3.5-122B-A10B-GGUF",
+   "release": "2026-02",
+   "params_b": 122,
+   "active_b": 10,
+   "layers": 48,
+   "kv_layers": 12,
+   "kv_heads": 2,
+   "head_dim": 256,
+   "experts": 256,
+   "experts_used": 8,
+   "ctx_max": 262144,
+   "vision": true,
+   "quants": [
+    "UD-Q2_K_XL",
+    "UD-Q3_K_XL",
+    "UD-Q4_K_XL"
+   ],
+   "org": "Qwen",
+   "tags": [
+    "chat",
+    "reasoning",
+    "code"
+   ],
+   "desc": {
+    "zh-TW": "122B MoE，每個 token 用 10B；能力強，需要大記憶體或多張顯示卡。",
+    "en": "122B MoE with 10B active; very capable, needs lots of RAM or several GPUs."
+   }
+  },
+  {
+   "id": "qwen3.5-9b",
+   "name": "Qwen3.5 9B",
+   "repo": "unsloth/Qwen3.5-9B-GGUF",
+   "release": "2026-03",
+   "params_b": 9,
+   "layers": 32,
+   "kv_layers": 8,
+   "kv_heads": 4,
+   "head_dim": 256,
+   "ctx_max": 262144,
+   "vision": true,
+   "quants": [
+    "Q4_K_M",
+    "UD-Q4_K_XL",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "org": "Qwen",
+   "tags": [
+    "chat",
+    "vision"
+   ],
+   "desc": {
+    "zh-TW": "9B 稠密模型，8 GB 顯示卡可用，支援影像輸入。",
+    "en": "9B dense model usable on 8 GB GPUs; accepts images."
+   }
+  },
+  {
+   "id": "qwen3.5-4b",
+   "name": "Qwen3.5 4B",
+   "repo": "unsloth/Qwen3.5-4B-GGUF",
+   "release": "2026-03",
+   "params_b": 4,
+   "layers": 32,
+   "kv_layers": 8,
+   "kv_heads": 4,
+   "head_dim": 256,
+   "ctx_max": 262144,
+   "vision": true,
+   "quants": [
+    "Q4_K_M",
+    "Q5_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "org": "Qwen",
+   "tags": [
+    "chat"
+   ],
+   "desc": {
+    "zh-TW": "4B 小模型，CPU 或內顯也能跑，支援影像輸入。",
+    "en": "4B small model that runs on CPU or iGPU; accepts images."
+   }
+  },
+  {
+   "id": "glm-4.7-flash",
+   "name": "GLM-4.7 Flash",
+   "repo": "unsloth/GLM-4.7-Flash-GGUF",
+   "release": "2026-01",
+   "params_b": 30,
+   "active_b": 3,
+   "layers": 47,
+   "kv_heads": 4,
+   "head_dim": 128,
+   "experts": 64,
+   "experts_used": 4,
+   "ctx_max": 131072,
+   "quants": [
+    "UD-Q3_K_XL",
+    "UD-Q4_K_XL",
+    "Q4_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "org": "Z.ai",
+   "tags": [
+    "code",
+    "chat"
+   ],
+   "desc": {
+    "zh-TW": "30B MoE，每個 token 用 3B，速度快，擅長寫程式與工具呼叫。",
+    "en": "30B MoE with 3B active; fast and good at coding and tool calls."
+   }
+  },
+  {
+   "id": "devstral-small-2-24b",
+   "name": "Devstral Small 2 24B",
+   "repo": "unsloth/Devstral-Small-2-24B-Instruct-2512-GGUF",
+   "release": "2025-12",
+   "params_b": 24,
+   "layers": 40,
+   "kv_heads": 8,
+   "head_dim": 128,
+   "ctx_max": 131072,
+   "quants": [
+    "UD-Q3_K_XL",
+    "UD-Q4_K_XL",
+    "Q4_K_M",
+    "Q6_K",
+    "Q8_0"
+   ],
+   "org": "Mistral AI",
+   "tags": [
+    "code"
+   ],
+   "desc": {
+    "zh-TW": "24B 稠密的程式代理模型，適合搭配 Agent 頁面使用。",
+    "en": "24B dense coding-agent model, a good fit for the Agent page."
+   }
+  },
+  {
+   "id": "gpt-oss-20b",
+   "name": "gpt-oss 20B",
+   "repo": "unsloth/gpt-oss-20b-GGUF",
+   "release": "2025-08",
+   "params_b": 21,
+   "active_b": 3.6,
+   "layers": 24,
+   "kv_heads": 8,
+   "head_dim": 64,
+   "experts": 32,
+   "experts_used": 4,
+   "ctx_max": 131072,
+   "quants": [
+    "Q4_K_M",
+    "F16"
+   ],
+   "size_gb": {
+    "Q4_K_M": 11.6,
+    "F16": 13.8
+   },
+   "org": "OpenAI",
+   "tags": [
+    "chat",
+    "reasoning",
+    "code"
+   ],
+   "desc": {
+    "zh-TW": "OpenAI 開放權重 MoE（約 3.6B 活躍），16 GB 顯示卡可全放 GPU，支援推理強度設定。",
+    "en": "OpenAI open-weight MoE (about 3.6B active); fits a 16 GB GPU, supports reasoning effort."
+   }
+  },
+  {
+   "id": "gpt-oss-120b",
+   "name": "gpt-oss 120B",
+   "repo": "unsloth/gpt-oss-120b-GGUF",
+   "release": "2025-08",
+   "params_b": 117,
+   "active_b": 5.1,
+   "layers": 36,
+   "kv_heads": 8,
+   "head_dim": 64,
+   "experts": 128,
+   "experts_used": 4,
+   "ctx_max": 131072,
+   "quants": [
+    "Q4_K_M",
+    "F16"
+   ],
+   "size_gb": {
+    "Q4_K_M": 62.8,
+    "F16": 65.4
+   },
+   "org": "OpenAI",
+   "tags": [
+    "chat",
+    "reasoning",
+    "code"
+   ],
+   "desc": {
+    "zh-TW": "OpenAI 開放權重大型 MoE（約 5.1B 活躍），需約 64 GB 以上記憶體。",
+    "en": "Large OpenAI open-weight MoE (about 5.1B active); needs roughly 64 GB+ of memory."
+   }
+  }
+ ]
+}
