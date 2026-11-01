@@ -388,8 +388,8 @@ async fn engine_install(app: AppHandle, state: State<'_, AppState>, kind: Engine
         Some(b) => b,
         None => state.hardware(false).await.recommended_backends.first().copied().unwrap_or(Backend::Cpu),
     };
-    Ok(spawn_job(&app, &state, "engine", move |cancel, progress, _| async move {
-        let e = engine::install(&s, kind, backend, &cancel, &progress).await?;
+    Ok(spawn_job(&app, &state, "engine", move |cancel, progress, jid| async move {
+        let e = engine::install(&s, kind, backend, &cancel, &jid, &progress).await?;
         Ok(vec![e.binary.display().to_string()])
     }))
 }

@@ -346,7 +346,7 @@ async fn main() -> Result<()> {
                     None => s.backend.unwrap_or_else(|| hardware(&s).recommended_backends[0]),
                 };
                 eprintln!("installing {} ({})", EngineKind::from(kind).repo(), backend.as_str());
-                let e = engine::install(&s, kind.into(), backend, &ctrl_c_token(), &progress_printer()).await?;
+                let e = engine::install(&s, kind.into(), backend, &ctrl_c_token(), "engine", &progress_printer()).await?;
                 println!("installed {} → {}", e.version, e.binary.display());
             }
             EngineCmd::Import { path, kind } => {

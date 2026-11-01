@@ -62,6 +62,13 @@ pub struct Asset {
 pub struct Release {
     pub tag_name: String,
     pub assets: Vec<Asset>,
+    #[serde(default)]
+    pub draft: bool,
+}
+
+/// Newest non-draft release that has a build for `backend` on `t`.
+pub fn pick_release<'a>(releases: &'a [Release], t: Target<'_>, backend: Backend, max_cuda: Option<u32>) -> Option<(&'a Release, Asset, Option<Asset>)> {
+    releases.iter().filter(|r| !r.draft).find_map(|r| pick_assets(&r.assets, t, backend, max_cuda).map(|(m, rt)| (r, m, rt)))
 }
 
 /// What `engine.json` records for an installed or imported engine.
@@ -194,13 +201,20 @@ pub fn pick_assets(assets: &[Asset], t: Target, backend: Backend, max_cuda: Opti
 /// Highest CUDA major version supported by the installed NVIDIA driver.
 pub fn driver_cuda_major() -> Option<u32> {
     let out = std::process::Command::new("nvidia-smi").output().ok()?;
-    let s = String::from_utf8_lossy(&out.stdout);
-    let re = regex::Regex::new(r"CUDA Version:\s*(\d+)").unwrap();
-    re.captures(&s)?[1].parse().ok()
+    parse_driver_cuda(&String::from_utf8_lossy(&out.stdout))
 }
 
-pub async fn latest_release(http: &reqwest::Client, github_api: &str, repo: &str) -> Result<Release> {
-    let url = format!("{}/repos/{}/releases/latest", github_api.trim_end_matches('/'), repo);
+/// Newer drivers print "CUDA UMD Version: 13.5" where older ones said "CUDA Version: 12.4".
+fn parse_driver_cuda(smi: &str) -> Option<u32> {
+    let re = regex::Regex::new(r"CUDA (?:UMD )?Version:\s*(\d+)").unwrap();
+    re.captures(smi)?[1].parse().ok()
+}
+
+/// Recent releases, newest first. llama.cpp publishes its builds as
+/// prereleases and points "latest" at a tag without binaries, so callers scan
+/// this list instead of asking for `/releases/latest`.
+pub async fn recent_releases(http: &reqwest::Client, github_api: &str, repo: &str) -> Result<Vec<Release>> {
+    let url = format!("{}/repos/{}/releases?per_page=15", github_api.trim_end_matches('/'), repo);
     let r = http.get(&url).header("Accept", "application/vnd.github+json").send().await?;
     if r.status().as_u16() == 403 {
         bail!("GitHub API rate limit reached; try again later");
@@ -300,20 +314,22 @@ fn write_manifest(e: &InstalledEngine) -> Result<()> {
     Ok(())
 }
 
-/// Download and install the latest release for `backend`.
-pub async fn install(s: &Settings, kind: EngineKind, backend: Backend, cancel: &CancellationToken, progress: &ProgressFn) -> Result<InstalledEngine> {
+/// Download and install the newest release that has a build for `backend`.
+/// Progress events carry `job_id`.
+pub async fn install(s: &Settings, kind: EngineKind, backend: Backend, cancel: &CancellationToken, job_id: &str, progress: &ProgressFn) -> Result<InstalledEngine> {
     let http = crate::http_client();
-    let rel = latest_release(&http, &s.github_api, kind.repo()).await?;
+    let releases = recent_releases(&http, &s.github_api, kind.repo()).await?;
     let max_cuda = if backend == Backend::Cuda { driver_cuda_major() } else { None };
-    let Some((main, runtime)) = pick_assets(&rel.assets, Target::current(), backend, max_cuda) else {
-        bail!("{} {} has no {} build for {}/{}", kind.repo(), rel.tag_name, backend.as_str(), std::env::consts::OS, std::env::consts::ARCH);
+    let Some((rel, main, runtime)) = pick_release(&releases, Target::current(), backend, max_cuda) else {
+        bail!("no recent {} release has a {} build for {}/{}", kind.repo(), backend.as_str(), std::env::consts::OS, std::env::consts::ARCH);
     };
+    let rel = rel.clone();
     let dl_dir = s.engines_dir.join("_downloads");
     let mut items = vec![DownloadItem { url: s.github_download_url(&main.url), dest: dl_dir.join(&main.name), size: Some(main.size).filter(|n| *n > 0) }];
     if let Some(r) = &runtime {
         items.push(DownloadItem { url: s.github_download_url(&r.url), dest: dl_dir.join(&r.name), size: Some(r.size).filter(|n| *n > 0) });
     }
-    download_all(&http, &items, &[], cancel, &format!("engine-{}", kind.dir_name()), progress).await?;
+    download_all(&http, &items, &[], cancel, job_id, progress).await?;
 
     let dir = kind_dir(s, kind).join(format!("{}-{}", rel.tag_name, backend.as_str()));
     if dir.exists() {
@@ -417,6 +433,22 @@ mod tests {
 
     fn pick(os: &str, arch: &str, b: Backend, cuda: Option<u32>) -> Option<(String, Option<String>)> {
         pick_assets(&assets(LLAMA), Target { os, arch }, b, cuda).map(|(m, r)| (m.name, r.map(|r| r.name)))
+    }
+
+    #[test]
+    fn driver_cuda_header() {
+        assert_eq!(parse_driver_cuda("| NVIDIA-SMI 621.01   KMD Version: 621.01   CUDA UMD Version: 13.5 |"), Some(13));
+        assert_eq!(parse_driver_cuda("| NVIDIA-SMI 552.22   Driver Version: 552.22   CUDA Version: 12.4 |"), Some(12));
+    }
+
+    #[test]
+    fn skips_releases_without_builds() {
+        let rel = |tag: &str, names: &[&str], draft| Release { tag_name: tag.into(), assets: assets(names), draft };
+        let list = [rel("b12033", LLAMA, true), rel("v0.8.0", &["nightly-tag.txt"], false), rel("b12032", LLAMA, false)];
+        let (r, main, _) = pick_release(&list, Target { os: "windows", arch: "x86_64" }, Backend::Cuda, Some(13)).unwrap();
+        assert_eq!(r.tag_name, "b12032");
+        assert_eq!(main.name, "llama-b11669-bin-win-cuda-13.4-x64.zip");
+        assert!(pick_release(&list[..2], Target { os: "windows", arch: "x86_64" }, Backend::Cuda, None).is_none());
     }
 
     #[test]
