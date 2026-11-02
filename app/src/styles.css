@@ -105,6 +105,7 @@ label.check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .pill.ok { background: var(--accent-soft); color: var(--accent); }
 .pill.slow { background: var(--warn-soft); color: var(--warn); }
 .pill.crawl { background: var(--bad-soft); color: var(--bad); }
+.pill.cn { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
 .pill.strata { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
 .dot.ready { background: var(--good); }

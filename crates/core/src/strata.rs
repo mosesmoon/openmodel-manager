@@ -226,6 +226,8 @@ pub struct ManagedModel {
     pub id: &'static str,
     pub name: &'static str,
     pub org: &'static str,
+    /// ISO country code of the developer, as in the catalog.
+    pub origin: &'static str,
     pub family: &'static str,
     pub tags: &'static [&'static str],
     pub sets: &'static [ManagedSet],
@@ -246,6 +248,7 @@ pub const MANAGED: &[ManagedModel] = &[ManagedModel {
     id: "deepseek-v4.1-flash",
     name: "DeepSeekV4.1-Flash-1017",
     org: "DeepSeek · ISTA-DASLab",
+    origin: "CN",
     family: "deepseek41",
     tags: &["chat", "code", "reasoning"],
     sets: &[

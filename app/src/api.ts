@@ -45,10 +45,11 @@ export interface CatalogEntry {
   params_b: number; active_b: number | null; ctx_max: number; vision: boolean; quants: string[];
   description: string; fits: QuantFit[]; recommended: string | null;
   strata: StrataPack | null;
+  origin?: string | null;
 }
 export interface StrataPack { family: string; repo: string; quants: string[] }
 export interface ManagedSet { model: string; label: string; disk_gb: number }
-export interface ManagedModel { id: string; name: string; org: string; family: string; tags: string[]; sets: ManagedSet[]; description: string; dir: string }
+export interface ManagedModel { id: string; name: string; org: string; origin: string; family: string; tags: string[]; sets: ManagedSet[]; description: string; dir: string }
 
 export interface Plan {
   tier: Tier; tier_label: string; ctx: number; gpu_layers: number; n_cpu_moe: number;

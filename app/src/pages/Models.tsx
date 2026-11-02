@@ -37,6 +37,7 @@ function Recommended() {
   const [vision, setVision] = useState(true);
   const [tags, setTags] = useState<string[]>([]);
   const [strataOnly, setStrataOnly] = useState(false);
+  const [china, setChina] = useState(false);
   const [managed, setManaged] = useState<ManagedModel[]>([]);
   const [hasStrata, setHasStrata] = useState(false);
   const load = () => api.catalog().then(setList, fail);
@@ -47,14 +48,14 @@ function Recommended() {
   }, []);
   if (!list) return <p className="muted">{t("common.loading")}</p>;
   const toggle = (x: string) => setTags(tags.includes(x) ? tags.filter((y) => y !== x) : [...tags, x]);
-  const shown = list.filter((m) => tags.every((x) => m.tags.includes(x)) && (!strataOnly || !!m.strata));
-  const shownManaged = managed.filter((m) => tags.every((x) => m.tags.includes(x)));
+  const shown = list.filter((m) => tags.every((x) => m.tags.includes(x)) && (!strataOnly || !!m.strata) && (!china || m.origin === "CN"));
+  const shownManaged = managed.filter((m) => tags.every((x) => m.tags.includes(x)) && (!china || m.origin === "CN"));
   const count = (x: string) => list.filter((m) => m.tags.includes(x)).length + managed.filter((m) => m.tags.includes(x)).length;
   return (
     <>
       <div className="chips" style={{ marginBottom: 10 }}>
         <span className="muted small">{t("models.filter")}</span>
-        <button className={"chip" + (tags.length === 0 && !strataOnly ? " on" : "")} onClick={() => { setTags([]); setStrataOnly(false); }}>{t("models.filter_all")}</button>
+        <button className={"chip" + (tags.length === 0 && !strataOnly && !china ? " on" : "")} onClick={() => { setTags([]); setStrataOnly(false); setChina(false); }}>{t("models.filter_all")}</button>
         {TAGS.map((x) => (
           <button key={x} className={"chip" + (tags.includes(x) ? " on" : "")} onClick={() => toggle(x)}>
             {tagLabel(t, x)} <span className="muted">{count(x)}</span>
@@ -62,6 +63,9 @@ function Recommended() {
         ))}
         <button className={"chip" + (strataOnly ? " on" : "")} onClick={() => setStrataOnly(!strataOnly)} title={t("models.strata_tip")}>
           Strata <span className="muted">{list.filter((m) => m.strata).length + managed.length}</span>
+        </button>
+        <button className={"chip" + (china ? " on" : "")} onClick={() => setChina(!china)} title={t("models.china_tip")}>
+          China Model <span className="muted">{list.filter((m) => m.origin === "CN").length + managed.filter((m) => m.origin === "CN").length}</span>
         </button>
       </div>
       <label className="check" style={{ marginBottom: 12 }}>
@@ -83,6 +87,7 @@ function Recommended() {
                 <div className="row spread">
                   <h3 style={{ margin: 0 }}>{m.name}</h3>
                   <span className="row" style={{ gap: 6 }}>
+                    {m.origin === "CN" && <span className="pill cn" title={t("models.china_tip")}>China Model</span>}
                     {sp && <span className="pill strata" title={t("models.strata_tip")}>Strata</span>}
                     {fit && <span className={"pill " + fit.tier}>{fit.tier_label}</span>}
                   </span>
@@ -160,7 +165,10 @@ function ManagedCard({ m, hasStrata }: { m: ManagedModel; hasStrata: boolean }) 
       <div>
         <div className="row spread">
           <h3 style={{ margin: 0 }}>{m.name}</h3>
-          <span className="pill strata" title={t("models.strata_tip")}>{t("models.strata_only")}</span>
+          <span className="row" style={{ gap: 6 }}>
+            {m.origin === "CN" && <span className="pill cn" title={t("models.china_tip")}>China Model</span>}
+            <span className="pill strata" title={t("models.strata_tip")}>{t("models.strata_only")}</span>
+          </span>
         </div>
         <div className="muted small">{m.org}</div>
       </div>

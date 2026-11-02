@@ -38,7 +38,8 @@
    "desc": {
     "zh-TW": "180B 總參數的 MoE，每個 token 只用 6B；支援影像輸入。需要很大的記憶體。",
     "en": "180B-parameter MoE with 6B active per token; accepts images. Needs a lot of memory."
-   }
+   },
+   "origin": "CN"
   },
   {
    "id": "qwen3.8-flash-next-ista",
@@ -77,7 +78,8 @@
    "desc": {
     "zh-TW": "同一個 Qwen3.8 Flash-Next，ISTA-DASLab 依每個張量的敏感度分配位元（GSQ-RCO），比同大小的一般量化更準。標準 GGUF，llama.cpp 可直接跑；Strata 首推這組。Q2_0 速度最快。",
     "en": "The same Qwen3.8 Flash-Next, quantized by ISTA-DASLab with per-tensor bit allocation (GSQ-RCO): more accurate than uniform quants of the same size. Standard GGUF that llama.cpp runs as is; Strata's first recommendation. Q2_0 is the fastest."
-   }
+   },
+   "origin": "CN"
   },
   {
    "id": "qwen3.8-27b",
@@ -117,7 +119,8 @@
     "UD-Q5_K_XL": 20.9,
     "UD-Q6_K_XL": 25.3,
     "Q8_0": 29.0
-   }
+   },
+   "origin": "CN"
   },
   {
    "id": "muse-glimmer-30b",
@@ -195,7 +198,8 @@
     "UD-Q5_K_XL": 26.6,
     "UD-Q6_K_XL": 31.8,
     "Q8_0": 36.9
-   }
+   },
+   "origin": "CN"
   },
   {
    "id": "qwen3.6-27b",
@@ -234,7 +238,8 @@
     "UD-Q5_K_XL": 20.0,
     "Q6_K": 22.5,
     "Q8_0": 28.6
-   }
+   },
+   "origin": "CN"
   },
   {
    "id": "gemma-4-26b-a4b",
@@ -420,7 +425,8 @@
     "UD-Q2_K_XL": 41.8,
     "UD-Q3_K_XL": 57.0,
     "UD-Q4_K_XL": 77.0
-   }
+   },
+   "origin": "CN"
   },
   {
    "id": "qwen3.5-9b",
@@ -456,7 +462,8 @@
     "Q5_K_M": 6.6,
     "Q6_K": 7.5,
     "Q8_0": 9.5
-   }
+   },
+   "origin": "CN"
   },
   {
    "id": "qwen3.5-4b",
@@ -489,7 +496,8 @@
     "Q5_K_M": 3.1,
     "Q6_K": 3.5,
     "Q8_0": 4.5
-   }
+   },
+   "origin": "CN"
   },
   {
    "id": "glm-4.7-flash",
@@ -526,7 +534,8 @@
     "Q4_K_M": 18.3,
     "Q6_K": 24.7,
     "Q8_0": 31.8
-   }
+   },
+   "origin": "CN"
   },
   {
    "id": "devstral-small-2-24b",
