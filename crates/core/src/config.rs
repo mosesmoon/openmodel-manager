@@ -193,7 +193,7 @@ fn installer_language() -> Option<String> {
 fn parse_installer_language(raw: &[u8]) -> Option<String> {
     // Windows writes INI files as UTF-16 when they start with a BOM.
     let text = if raw.starts_with(&[0xFF, 0xFE]) {
-        String::from_utf16_lossy(&raw[2..].chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect::<Vec<_>>())
+        String::from_utf16_lossy(&raw[2..].as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect::<Vec<_>>())
     } else {
         String::from_utf8_lossy(raw).into_owned()
     };
