@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { api, Engines, gb, Hardware, VramUse } from "../api";
+import { api, Engines, gb, Hardware, NamedEndpoint, VramUse } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
+import { findProvider } from "../providers";
+
+type ProvState = { state: "checking" } | { state: "nokey" } | { state: "ok"; models: string[]; ms: number } | { state: "error"; message: string; ms: number };
 
 export default function Overview() {
   const { t } = useI18n();
@@ -113,6 +116,68 @@ export default function Overview() {
           </div>
         </div>
       </div>
+
+      <ProvidersCard list={settings.endpoints} />
     </>
+  );
+}
+
+function ProvidersCard({ list }: { list: NamedEndpoint[] }) {
+  const { t } = useI18n();
+  const { go } = useApp();
+  const [st, setSt] = useState<Record<number, ProvState>>({});
+  const check = () => {
+    list.forEach((e, i) => {
+      const preset = findProvider(e.provider);
+      if (preset.id !== "custom" && !e.api_key) {
+        setSt((s) => ({ ...s, [i]: { state: "nokey" } }));
+        return;
+      }
+      setSt((s) => ({ ...s, [i]: { state: "checking" } }));
+      const t0 = performance.now();
+      api.endpointModels(e).then(
+        (models) => setSt((s) => ({ ...s, [i]: { state: "ok", models, ms: performance.now() - t0 } })),
+        (err) => setSt((s) => ({ ...s, [i]: { state: "error", message: String(err), ms: performance.now() - t0 } })),
+      );
+    });
+  };
+  // Re-check when the saved list changes (keys, addresses).
+  useEffect(check, [JSON.stringify(list)]);
+  const dot = (s?: ProvState) => (s?.state === "ok" ? "ready" : s?.state === "error" ? "crashed" : s?.state === "checking" ? "starting" : "stopped");
+  return (
+    <div className="card stack">
+      <div className="row spread">
+        <h2 style={{ margin: 0 }}>{t("overview.providers")}</h2>
+        <div className="row">
+          {list.length > 0 && <button className="btn sm" onClick={check}>{t("overview.prov_recheck")}</button>}
+          <button className="btn sm" onClick={() => go("settings")}>{t("nav.settings")}</button>
+        </div>
+      </div>
+      {list.length === 0 && <div className="muted">{t("overview.prov_none")}</div>}
+      {list.map((e, i) => {
+        const s = st[i];
+        const listed = s?.state === "ok" && (!e.model || s.models.length === 0 || s.models.some((m) => m === e.model || m.endsWith("/" + e.model)));
+        return (
+          <div key={i} className="row" style={{ alignItems: "flex-start" }}>
+            <span className={"dot " + dot(s)} style={{ marginTop: 7 }} />
+            <div className="grow stack" style={{ gap: 2, minWidth: 0 }}>
+              <div className="row" style={{ gap: 8 }}>
+                <b>{e.name}</b>
+                <span className="muted small">{findProvider(e.provider).name}{e.model ? ` · ${e.model}` : ""}</span>
+              </div>
+              <div className="small">
+                {!s || s.state === "checking" ? <span className="muted">{t("overview.prov_checking")}</span>
+                  : s.state === "nokey" ? <span className="muted">{t("overview.prov_nokey")}</span>
+                  : s.state === "ok" ? <span>{t("overview.prov_ok")} · {t("overview.prov_models").replace("{n}", String(s.models.length))} · {Math.round(s.ms)} ms</span>
+                  : <span style={{ color: "var(--bad)" }}>{t("overview.prov_err")} · {Math.round(s.ms)} ms</span>}
+              </div>
+              {s?.state === "error" && <div className="muted small ellipsis" title={s.message}>{s.message}</div>}
+              {s?.state === "ok" && !listed && <div className="note warn small">{t("overview.prov_model_missing").replace("{m}", e.model)}</div>}
+            </div>
+          </div>
+        );
+      })}
+      {list.length > 0 && <div className="muted small">{t("overview.prov_hint")}</div>}
+    </div>
   );
 }
