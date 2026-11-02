@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=OpenModel-Manager
+Comment=Run local AI models: chat, agent, images and video
+Comment[zh_TW]=在本機執行 AI 模型：對話、Agent、生成圖片與影片
+Exec=openmodel-app
+Icon=org.openmodel.manager
+Terminal=false
+Categories=Development;Utility;
+Keywords=AI;LLM;llama;model;chat;
+StartupWMClass=openmodel-app

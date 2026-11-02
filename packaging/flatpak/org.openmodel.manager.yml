@@ -1,0 +1,40 @@
+# Flatpak manifest. Repackages the binary from the deb built by
+# packaging/linux/build.sh (built against glibc 2.35, so it runs on the
+# GNOME runtime).
+id: org.openmodel.manager
+runtime: org.gnome.Platform
+runtime-version: '51'
+sdk: org.gnome.Sdk
+command: openmodel-app
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  # Engines run on the GPU: NVIDIA (CUDA), AMD (/dev/kfd for ROCm) and Vulkan.
+  - --device=all
+  # Models and engines can live on any disk the user picks.
+  - --filesystem=home
+  - --filesystem=/media
+  - --filesystem=/mnt
+  - --filesystem=/run/media
+  - --talk-name=org.freedesktop.Notifications
+modules:
+  - name: openmodel-manager
+    buildsystem: simple
+    sources:
+      - type: file
+        path: openmodel-manager.deb
+      - type: file
+        path: org.openmodel.manager.desktop
+      - type: file
+        path: org.openmodel.manager.metainfo.xml
+      - type: file
+        path: 128x128@2x.png
+    build-commands:
+      - ar x openmodel-manager.deb
+      - tar -xf data.tar.*
+      - install -Dm755 usr/bin/openmodel-app /app/bin/openmodel-app
+      - install -Dm644 org.openmodel.manager.desktop /app/share/applications/org.openmodel.manager.desktop
+      - install -Dm644 org.openmodel.manager.metainfo.xml /app/share/metainfo/org.openmodel.manager.metainfo.xml
+      - install -Dm644 128x128@2x.png /app/share/icons/hicolor/256x256/apps/org.openmodel.manager.png

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.openmodel.manager</id>
+  <name>OpenModel-Manager</name>
+  <summary>Run local AI models: chat, agent, images and video</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Apache-2.0 OR MIT</project_license>
+  <description>
+    <p>Open-source manager for local AI models. It checks what your hardware can run,
+    downloads models and inference engines (llama.cpp, stable-diffusion.cpp, Strata, vLLM),
+    plans GPU / RAM / disk placement, and gives you chat, an agent with backend-enforced
+    tool approval, and image and video generation. No telemetry.</p>
+  </description>
+  <launchable type="desktop-id">org.openmodel.manager.desktop</launchable>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-11-02"/>
+  </releases>
+</component>

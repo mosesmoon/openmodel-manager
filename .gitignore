@@ -9,3 +9,6 @@ dist/
 
 # Tauri generated schemas
 app/src-tauri/gen/
+
+# Linux packaging caches
+.cache/
