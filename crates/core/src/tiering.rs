@@ -122,6 +122,9 @@ impl Machine {
 pub struct PlanOptions {
     /// None = largest context that does not slow generation down.
     pub ctx: Option<u64>,
+    /// Smallest context the automatic choice may pick (capped at the model's
+    /// maximum). Agents such as Hermes refuse windows under 64K.
+    pub min_ctx: u64,
     pub kv_type: KvType,
     pub flash_attn: bool,
     pub model_path: String,
@@ -139,6 +142,7 @@ impl Default for PlanOptions {
     fn default() -> Self {
         PlanOptions {
             ctx: None,
+            min_ctx: 0,
             kv_type: KvType::Q8_0,
             flash_attn: true,
             model_path: "model.gguf".into(),
@@ -331,7 +335,11 @@ fn choose_ctx(shape: &ModelShape, m: &Machine, o: &PlanOptions, mmproj: u64) -> 
     if let Some(c) = o.ctx {
         return c.clamp(512, cap);
     }
-    let cands: Vec<u64> = AUTO_CTX.iter().copied().filter(|c| *c <= cap).collect();
+    let floor = o.min_ctx.min(cap);
+    let mut cands: Vec<u64> = AUTO_CTX.iter().copied().filter(|c| *c <= cap && *c >= floor).collect();
+    if floor > 0 && !cands.contains(&floor) {
+        cands.insert(0, floor);
+    }
     let Some(&first) = cands.first() else { return cap };
     let base = evaluate(shape, m, first, o.kv_type, mmproj);
     let mut best = first;
@@ -593,6 +601,18 @@ mod tests {
             vram_reserve: GIB / 2,
             ram_reserve: 4 * GIB,
         }
+    }
+
+    #[test]
+    fn auto_context_respects_the_minimum() {
+        // A model too big for the GPU: without a floor auto stays small.
+        let shape = dense(60, 0.5);
+        let fast = plan(&shape, &gpu(12), &PlanOptions::default());
+        let agent = plan(&shape, &gpu(12), &PlanOptions { min_ctx: 65536, ..Default::default() });
+        assert!(agent.ctx >= 65536, "got {}", agent.ctx);
+        assert!(fast.ctx <= agent.ctx);
+        // An explicit context still wins.
+        assert_eq!(plan(&shape, &gpu(12), &PlanOptions { ctx: Some(8192), min_ctx: 65536, ..Default::default() }).ctx, 8192);
     }
 
     #[test]

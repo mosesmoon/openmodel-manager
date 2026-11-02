@@ -26,6 +26,7 @@ export interface Settings {
   image_port: number;
   lan_access: boolean;
   server_api_key: string | null;
+  min_ctx: number;
   jit_api: boolean;
   lan_addresses: string[];
   web_ui: boolean;

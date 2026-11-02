@@ -86,6 +86,12 @@ export default function SettingsPage() {
           <label className="row small">{t("settings.llm_port")}<input type="number" style={{ width: 90 }} value={s.server_port} onChange={(e) => set("server_port", Number(e.target.value))} /></label>
           <label className="row small">{t("settings.image_port")}<input type="number" style={{ width: 90 }} value={s.image_port} onChange={(e) => set("image_port", Number(e.target.value))} /></label>
         </div>
+        <label className="row small">{t("settings.min_ctx")}
+          <select value={s.min_ctx} onChange={(e) => set("min_ctx", Number(e.target.value))}>
+            {[0, 16384, 32768, 65536, 131072].map((c) => <option key={c} value={c}>{c === 0 ? t("settings.min_ctx_none") : `${c / 1024}K`}</option>)}
+          </select>
+        </label>
+        <div className="muted small">{t("settings.min_ctx_hint")}</div>
         <div className="muted small">{t("settings.privacy")}</div>
       </div>
 

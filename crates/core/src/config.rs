@@ -41,6 +41,8 @@ pub struct Settings {
     /// has been applied to `language`; a reinstall in another language
     /// switches the UI again.
     pub installer_language: Option<String>,
+    /// Smallest context "auto" picks; agents such as Hermes need 64K.
+    pub min_ctx: u64,
     /// Port used by llama-server (moves up if busy).
     pub server_port: u16,
     /// Port used by sd-server (moves up if busy).
@@ -102,6 +104,7 @@ impl Default for Settings {
             vram_reserve_bytes: GIB / 2,
             language: first_run_language().into(),
             installer_language: None,
+            min_ctx: 65536,
             server_port: 8080,
             image_port: 7860,
             lan_access: false,

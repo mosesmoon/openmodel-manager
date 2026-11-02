@@ -7,6 +7,14 @@ This file records the changes in each version, loosely following [Keep a Changel
 > Beta 版的程式內版本號仍是 0.1.0，安裝檔檔名也是 `0.1.0`，正式發行 0.1.1 時才會更新。
 > Beta builds still carry version 0.1.0 inside the app and in the installer file names; it changes at the 0.1.1 release.
 
+## [Unreleased]
+
+### 新增
+- 設定新增「自動上下文至少」，預設 64K：「上下文長度」選自動時（包括 JIT 自動掛載）至少用這個大小，讓 Hermes 等需要 64K 以上的 Agent 可以使用。
+
+### Added
+- New setting "Auto context at least", 64K by default: an automatic context length (including JIT loads) is never smaller, so agents such as Hermes that need 64K or more can use the model.
+
 ## [0.1.1-beta.4] - 2026-11-03
 
 ### 新增

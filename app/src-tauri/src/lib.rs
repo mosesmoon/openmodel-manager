@@ -330,6 +330,7 @@ fn base_options(s: &Settings, o: &RunOptions, mmproj: Option<PathBuf>) -> PlanOp
     let key = o.path.file_name().unwrap_or_default().to_string_lossy().to_string();
     PlanOptions {
         ctx: o.ctx,
+        min_ctx: s.min_ctx,
         model_path: o.path.display().to_string(),
         mmproj_path: mmproj.map(|p| p.display().to_string()),
         host: "127.0.0.1".into(),
