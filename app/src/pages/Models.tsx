@@ -6,6 +6,29 @@ import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 
 const TAGS = ["chat", "code", "vision", "reasoning"];
+// Badge text stays English in both languages ("China Model"); the tooltip is translated.
+const ORIGINS: Record<string, { badge: string; zh: string; en: string }> = {
+  CN: { badge: "China Model", zh: "中國", en: "China" },
+  US: { badge: "USA Model", zh: "美國", en: "the USA" },
+  FR: { badge: "France Model", zh: "法國", en: "France" },
+  JP: { badge: "Japan Model", zh: "日本", en: "Japan" },
+  KR: { badge: "Korea Model", zh: "韓國", en: "South Korea" },
+  TW: { badge: "Taiwan Model", zh: "台灣", en: "Taiwan" },
+  DE: { badge: "Germany Model", zh: "德國", en: "Germany" },
+  GB: { badge: "UK Model", zh: "英國", en: "the UK" },
+  CA: { badge: "Canada Model", zh: "加拿大", en: "Canada" },
+  AE: { badge: "UAE Model", zh: "阿聯", en: "the UAE" },
+};
+/** Flag emoji from an ISO 3166 alpha-2 code (two regional indicator symbols). */
+const flag = (code: string) => (/^[A-Z]{2}$/.test(code) ? String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : "");
+const originBadge = (o: string) => `${flag(o)} ${ORIGINS[o]?.badge ?? `${o} Model`}`.trim();
+
+function OriginPill({ code }: { code?: string | null }) {
+  const { t, lang } = useI18n();
+  if (!code) return null;
+  const o = ORIGINS[code] ?? { badge: `${code} Model`, zh: code, en: code };
+  return <span className="pill origin" title={t("models.origin_tip").replace("{country}", lang.startsWith("zh") ? o.zh : o.en)}>{originBadge(code)}</span>;
+}
 const tagLabel = (t: (k: Key) => string, x: string) => (TAGS.includes(x) ? t(("tag." + x) as Key) : x);
 
 type Tab = "recommended" | "installed" | "media" | "search";
@@ -37,7 +60,7 @@ function Recommended() {
   const [vision, setVision] = useState(true);
   const [tags, setTags] = useState<string[]>([]);
   const [strataOnly, setStrataOnly] = useState(false);
-  const [china, setChina] = useState(false);
+  const [origins, setOrigins] = useState<string[]>([]);
   const [managed, setManaged] = useState<ManagedModel[]>([]);
   const [hasStrata, setHasStrata] = useState(false);
   const load = () => api.catalog().then(setList, fail);
@@ -48,14 +71,19 @@ function Recommended() {
   }, []);
   if (!list) return <p className="muted">{t("common.loading")}</p>;
   const toggle = (x: string) => setTags(tags.includes(x) ? tags.filter((y) => y !== x) : [...tags, x]);
-  const shown = list.filter((m) => tags.every((x) => m.tags.includes(x)) && (!strataOnly || !!m.strata) && (!china || m.origin === "CN"));
-  const shownManaged = managed.filter((m) => tags.every((x) => m.tags.includes(x)) && (!china || m.origin === "CN"));
+  // Countries are alternatives (USA or China); capability tags must all match.
+  const fromOrigin = (o?: string | null) => origins.length === 0 || (!!o && origins.includes(o));
+  const shown = list.filter((m) => tags.every((x) => m.tags.includes(x)) && (!strataOnly || !!m.strata) && fromOrigin(m.origin));
+  const shownManaged = managed.filter((m) => tags.every((x) => m.tags.includes(x)) && fromOrigin(m.origin));
+  const allOrigins = [...new Set([...list.map((m) => m.origin), ...managed.map((m) => m.origin)].filter((o): o is string => !!o))];
+  const byOrigin = (o: string) => list.filter((m) => m.origin === o).length + managed.filter((m) => m.origin === o).length;
+  allOrigins.sort((a, b) => byOrigin(b) - byOrigin(a));
   const count = (x: string) => list.filter((m) => m.tags.includes(x)).length + managed.filter((m) => m.tags.includes(x)).length;
   return (
     <>
       <div className="chips" style={{ marginBottom: 10 }}>
         <span className="muted small">{t("models.filter")}</span>
-        <button className={"chip" + (tags.length === 0 && !strataOnly && !china ? " on" : "")} onClick={() => { setTags([]); setStrataOnly(false); setChina(false); }}>{t("models.filter_all")}</button>
+        <button className={"chip" + (tags.length === 0 && !strataOnly && origins.length === 0 ? " on" : "")} onClick={() => { setTags([]); setStrataOnly(false); setOrigins([]); }}>{t("models.filter_all")}</button>
         {TAGS.map((x) => (
           <button key={x} className={"chip" + (tags.includes(x) ? " on" : "")} onClick={() => toggle(x)}>
             {tagLabel(t, x)} <span className="muted">{count(x)}</span>
@@ -64,9 +92,11 @@ function Recommended() {
         <button className={"chip" + (strataOnly ? " on" : "")} onClick={() => setStrataOnly(!strataOnly)} title={t("models.strata_tip")}>
           Strata <span className="muted">{list.filter((m) => m.strata).length + managed.length}</span>
         </button>
-        <button className={"chip" + (china ? " on" : "")} onClick={() => setChina(!china)} title={t("models.china_tip")}>
-          China Model <span className="muted">{list.filter((m) => m.origin === "CN").length + managed.filter((m) => m.origin === "CN").length}</span>
-        </button>
+        {allOrigins.map((o) => (
+          <button key={o} className={"chip" + (origins.includes(o) ? " on" : "")} onClick={() => setOrigins(origins.includes(o) ? origins.filter((x) => x !== o) : [...origins, o])}>
+            {originBadge(o)} <span className="muted">{byOrigin(o)}</span>
+          </button>
+        ))}
       </div>
       <label className="check" style={{ marginBottom: 12 }}>
         <input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />
@@ -87,7 +117,7 @@ function Recommended() {
                 <div className="row spread">
                   <h3 style={{ margin: 0 }}>{m.name}</h3>
                   <span className="row" style={{ gap: 6 }}>
-                    {m.origin === "CN" && <span className="pill cn" title={t("models.china_tip")}>China Model</span>}
+                    <OriginPill code={m.origin} />
                     {sp && <span className="pill strata" title={t("models.strata_tip")}>Strata</span>}
                     {fit && <span className={"pill " + fit.tier}>{fit.tier_label}</span>}
                   </span>
@@ -166,7 +196,7 @@ function ManagedCard({ m, hasStrata }: { m: ManagedModel; hasStrata: boolean }) 
         <div className="row spread">
           <h3 style={{ margin: 0 }}>{m.name}</h3>
           <span className="row" style={{ gap: 6 }}>
-            {m.origin === "CN" && <span className="pill cn" title={t("models.china_tip")}>China Model</span>}
+            <OriginPill code={m.origin} />
             <span className="pill strata" title={t("models.strata_tip")}>{t("models.strata_only")}</span>
           </span>
         </div>

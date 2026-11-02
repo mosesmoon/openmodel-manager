@@ -156,7 +156,8 @@
    "desc": {
     "zh-TW": "30B 稠密模型，工具呼叫與本機代理任務表現好，支援影像輸入。",
     "en": "30B dense model that is good at tool calling and local agent work; accepts images."
-   }
+   },
+   "origin": "US"
   },
   {
    "id": "qwen3.6-35b-a3b",
@@ -280,7 +281,8 @@
     "UD-Q5_K_XL": 21.2,
     "UD-Q6_K": 23.2,
     "Q8_0": 26.9
-   }
+   },
+   "origin": "US"
   },
   {
    "id": "gemma-4-31b",
@@ -319,7 +321,8 @@
     "Q4_K_M": 18.3,
     "Q6_K": 25.2,
     "Q8_0": 33.2
-   }
+   },
+   "origin": "US"
   },
   {
    "id": "gemma-4-12b",
@@ -355,7 +358,8 @@
     "Q5_K_M": 8.4,
     "Q6_K": 9.8,
     "Q8_0": 13.1
-   }
+   },
+   "origin": "US"
   },
   {
    "id": "gemma-4-e4b",
@@ -389,7 +393,8 @@
    "desc": {
     "zh-TW": "小型模型（約 4B 有效參數），筆電與內顯也能用，支援影像輸入。",
     "en": "Small model (about 4B effective) for laptops and iGPUs; accepts images."
-   }
+   },
+   "origin": "US"
   },
   {
    "id": "qwen3.5-122b-a10b",
@@ -568,7 +573,8 @@
     "Q4_K_M": 14.3,
     "Q6_K": 19.3,
     "Q8_0": 25.1
-   }
+   },
+   "origin": "FR"
   },
   {
    "id": "gpt-oss-20b",
@@ -600,7 +606,8 @@
    "desc": {
     "zh-TW": "OpenAI 開放權重 MoE（約 3.6B 活躍），16 GB 顯示卡可全放 GPU，支援推理強度設定。",
     "en": "OpenAI open-weight MoE (about 3.6B active); fits a 16 GB GPU, supports reasoning effort."
-   }
+   },
+   "origin": "US"
   },
   {
    "id": "gpt-oss-120b",
@@ -632,7 +639,8 @@
    "desc": {
     "zh-TW": "OpenAI 開放權重大型 MoE（約 5.1B 活躍），需約 64 GB 以上記憶體。",
     "en": "Large OpenAI open-weight MoE (about 5.1B active); needs roughly 64 GB+ of memory."
-   }
+   },
+   "origin": "US"
   }
  ]
 }

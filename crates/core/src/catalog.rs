@@ -48,7 +48,7 @@ pub struct CatalogModel {
     /// Known download sizes in GB (overrides the bits-per-weight estimate).
     #[serde(default)]
     pub size_gb: BTreeMap<String, f64>,
-    /// ISO country code of the developer ("CN" for Qwen, GLM, DeepSeek).
+    /// ISO country code of the developer ("CN", "US", "FR", ...).
     #[serde(default)]
     pub origin: Option<String>,
 }
@@ -151,7 +151,8 @@ mod tests {
             assert!(!m.quants.is_empty());
         }
         assert_eq!(c.find("qwen3.6-27b").unwrap().origin.as_deref(), Some("CN"));
-        assert_eq!(c.find("gemma-4-12b").unwrap().origin, None);
+        assert_eq!(c.find("gemma-4-12b").unwrap().origin.as_deref(), Some("US"));
+        assert!(c.models.iter().all(|m| m.origin.is_some()), "every model names its origin");
     }
 
     #[test]

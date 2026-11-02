@@ -1,0 +1,9 @@
+TwemojiCountryFlags.woff2 is taken unchanged from the npm package
+country-flag-emoji-polyfill 0.1.10 (https://github.com/talkjs/country-flag-emoji-polyfill).
+
+The flag artwork comes from Twemoji (https://github.com/twitter/twemoji),
+Copyright 2019 Twitter, Inc and other contributors, licensed under
+Creative Commons Attribution 4.0 International (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+
+The font subset was made by TalkJS (MIT licence, Copyright (c) 2022 TalkJS).

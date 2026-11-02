@@ -53,4 +53,6 @@ openmodel serve <path/to/model.gguf> --lan               # 失敗時自動以相
 
 Apache-2.0 OR MIT，任選其一。見 [LICENSE-APACHE](LICENSE-APACHE)、[LICENSE-MIT](LICENSE-MIT)。
 
+第三方素材：國旗字型 `app/public/fonts/TwemojiCountryFlags.woff2` 的圖案來自 [Twemoji](https://github.com/twitter/twemoji)（CC BY 4.0），字型子集由 [country-flag-emoji-polyfill](https://github.com/talkjs/country-flag-emoji-polyfill)（MIT）製作，詳見同目錄的 `TwemojiCountryFlags.LICENSE.txt`。
+
 本專案是獨立的 clean-room 實作，沒有使用任何閉源產品的程式碼。This is an independent clean-room implementation.
