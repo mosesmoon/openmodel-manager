@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { api, Backend, EngineKind, Engines, NamedEndpoint, NetAddr, PyEngineInfo, PyVariant, Settings } from "../api";
-import { useApp } from "../App";
+import { inBrowser, openExternal, pickPath, signOut } from "../bridge";
+import { api, Backend, EngineKind, Engines, NamedEndpoint, NetAddr, PyEngineInfo, PyVariant, Settings, WebStatus } from "../api";
+import { NavPos, useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 import { findProvider, PROVIDERS } from "../providers";
 
@@ -11,7 +10,7 @@ const GIB = 1024 ** 3;
 
 export default function SettingsPage() {
   const { t } = useI18n();
-  const { settings, saveSettings, fail } = useApp();
+  const { settings, saveSettings, fail, nav, setNav } = useApp();
   const [s, setS] = useState<Settings>(settings);
   const [saved, setSaved] = useState(false);
   const [dataDir, setDataDir] = useState("");
@@ -23,8 +22,8 @@ export default function SettingsPage() {
   };
   const save = () => saveSettings(s).then(() => setSaved(true), fail);
   const pickDir = async (k: "models_dir" | "engines_dir" | "outputs_dir") => {
-    const p = await open({ directory: true, multiple: false, defaultPath: s[k] });
-    if (typeof p === "string") set(k, p);
+    const p = await pickPath({ directory: true, defaultPath: s[k] }, t("common.enter_path"));
+    if (p) set(k, p);
   };
 
   return (
@@ -46,6 +45,13 @@ export default function SettingsPage() {
             <option value="en">English</option>
           </select>
         </label>
+        <label className="field" style={{ maxWidth: 240 }}>
+          <span>{t("settings.nav_pos")}</span>
+          <select value={nav.pos} onChange={(e) => setNav({ ...nav, pos: e.target.value as NavPos })}>
+            {(["left", "right", "top", "bottom"] as NavPos[]).map((p) => <option key={p} value={p}>{t(("settings.nav_" + p) as Key)}</option>)}
+          </select>
+        </label>
+        <div className="muted small">{t("settings.nav_hint")}</div>
       </div>
 
       <div className="card stack">
@@ -55,13 +61,13 @@ export default function SettingsPage() {
             <span style={{ width: 90 }} className="muted">{t(("settings." + k) as Key)}</span>
             <input type="text" className="grow mono" value={s[k]} onChange={(e) => set(k, e.target.value)} />
             <button className="btn sm" onClick={() => pickDir(k)}>{t("common.browse")}</button>
-            <button className="btn sm" onClick={() => api.openFolder(s[k]).catch(fail)}>{t("common.open_folder")}</button>
+            {!inBrowser && <button className="btn sm" onClick={() => api.openFolder(s[k]).catch(fail)}>{t("common.open_folder")}</button>}
           </div>
         ))}
         <div className="row">
           <span style={{ width: 90 }} className="muted">{t("settings.data_dir")}</span>
           <span className="grow mono small">{dataDir}</span>
-          <button className="btn sm" onClick={() => api.openFolder(dataDir).catch(fail)}>{t("common.open_folder")}</button>
+          {!inBrowser && <button className="btn sm" onClick={() => api.openFolder(dataDir).catch(fail)}>{t("common.open_folder")}</button>}
         </div>
       </div>
 
@@ -89,6 +95,8 @@ export default function SettingsPage() {
         </div>
         <div className="muted small">{t("settings.privacy")}</div>
       </div>
+
+      <WebCard s={s} set={set} />
 
       <div className="card stack">
         <h2>{t("settings.memory")}</h2>
@@ -127,8 +135,8 @@ function EnginesCard({ backend, setBackend }: { backend: Backend | null; setBack
 
   const install = (kind: EngineKind) => api.engineInstall(kind, backend).then((id) => track(id, `${kind === "llama" ? "llama.cpp" : "stable-diffusion.cpp"} (${backend ?? eng?.recommended[0] ?? "auto"})`, () => load()), fail);
   const importIt = async (kind: EngineKind, dir: boolean) => {
-    const p = await open(dir ? { directory: true } : { filters: [{ name: "Archive", extensions: ["zip", "gz", "tgz"] }] });
-    if (typeof p === "string") api.engineImport(kind, p).then(load, fail);
+    const p = await pickPath(dir ? { directory: true } : { filters: [{ name: "Archive", extensions: ["zip", "gz", "tgz"] }] }, t("common.enter_path"));
+    if (p) api.engineImport(kind, p).then(load, fail);
   };
 
   return (
@@ -174,7 +182,7 @@ function EnginesCard({ backend, setBackend }: { backend: Backend | null; setBack
           <div className="row small">
             <span>{eng.strata.version}</span>
             <span className="muted mono ellipsis grow" title={eng.strata.launcher}>{eng.strata.launcher}</span>
-            <button className="btn sm" onClick={() => api.openFolder(eng.strata_data_dir).catch(fail)} title={t("settings.strata_data")}>{t("common.open_folder")}</button>
+            {!inBrowser && <button className="btn sm" onClick={() => api.openFolder(eng.strata_data_dir).catch(fail)} title={t("settings.strata_data")}>{t("common.open_folder")}</button>}
             <button className="btn sm danger" onClick={() => api.strataRemove().then(load, fail)}>{t("common.remove")}</button>
           </div>
         )}
@@ -289,7 +297,7 @@ function EndpointsCard({ list, setList }: { list: NamedEndpoint[]; setList: (l: 
             </div>
             <div className="row">
               <input type="password" className="grow" placeholder="API key" value={e.api_key ?? ""} onChange={(x) => upd(i, { api_key: x.target.value || null })} />
-              {p.key_url && <button className="btn sm" onClick={() => openUrl(p.key_url).catch(fail)}>{t("settings.get_key")}</button>}
+              {p.key_url && <button className="btn sm" onClick={() => openExternal(p.key_url).catch(fail)}>{t("settings.get_key")}</button>}
               <input type="text" list={`models-${i}`} style={{ width: 220 }} placeholder="model" value={e.model} onChange={(x) => upd(i, { model: x.target.value })} />
               <datalist id={`models-${i}`}>{(models[i] ?? []).map((m) => <option key={m} value={m} />)}</datalist>
               <button className="btn sm" title="List models" onClick={() => fetchModels(i)}>↻</button>
@@ -337,6 +345,71 @@ function LanAddresses({ chosen, setChosen }: { chosen: string[]; setChosen: (v: 
         </label>
       ))}
       {list && list.length > 0 && chosen.length === 0 && <div className="muted small">{t("settings.lan_all")}</div>}
+    </div>
+  );
+}
+
+/** A sliding on/off switch: green when on, red when off. */
+export function Switch({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <button type="button" role="switch" aria-checked={on} aria-label={label} className={"switch" + (on ? " on" : "")} onClick={() => onChange(!on)}>
+      <span className="knob" />
+    </button>
+  );
+}
+
+/** The web management page: on/off, port, password and network cards. */
+function WebCard({ s, set }: { s: Settings; set: <K extends keyof Settings>(k: K, v: Settings[K]) => void }) {
+  const { t } = useI18n();
+  const { settings, saveSettings, fail } = useApp();
+  const [status, setStatus] = useState<WebStatus | null>(null);
+  const [pw, setPw] = useState("");
+  const [pwSaved, setPwSaved] = useState(false);
+  const [hasPw, setHasPw] = useState(!!settings.web_password);
+  useEffect(() => {
+    const load = () => api.webStatus().then(setStatus).catch(() => {});
+    load();
+    const id = setInterval(load, 3000);
+    return () => clearInterval(id);
+  }, []);
+  // The switch takes effect at once: it saves just this setting.
+  const toggle = (on: boolean) => {
+    set("web_ui", on);
+    saveSettings({ ...settings, web_ui: on }).catch(fail);
+  };
+  const savePw = () => api.webSetPassword(pw).then(() => { setPw(""); setPwSaved(true); setHasPw(true); }, fail);
+  return (
+    <div className="card stack">
+      <div className="row spread">
+        <h2 style={{ margin: 0 }}>{t("settings.web")}</h2>
+        <div className="row">
+          <span className="small muted">{t(s.web_ui ? "settings.web_on" : "settings.web_off")}</span>
+          <Switch on={s.web_ui} onChange={toggle} label={t("settings.web")} />
+        </div>
+      </div>
+      <div className="muted small">{t("settings.web_hint")}</div>
+      {status?.running && (
+        <div className="stack">
+          {status.urls.map((u) => <div key={u} className="mono">{u}</div>)}
+        </div>
+      )}
+      {status?.error && <div className="note bad small">{status.error}</div>}
+      {s.web_ui && !hasPw && <div className="note warn small">{t("settings.web_need_pw")}</div>}
+      <div className="row">
+        <label className="row small">{t("settings.web_port")}<input type="number" style={{ width: 90 }} value={s.web_port} onChange={(e) => set("web_port", Number(e.target.value))} /></label>
+      </div>
+      <div className="field">
+        <span>{t(hasPw ? "settings.web_pw_change" : "settings.web_pw")}</span>
+        <div className="row">
+          <input type="password" className="grow" autoComplete="new-password" value={pw} onChange={(e) => { setPw(e.target.value); setPwSaved(false); }} />
+          <button className="btn" disabled={pw.length < 6} onClick={savePw}>{t("settings.web_pw_set")}</button>
+          {pwSaved && <span className="muted small">{t("common.saved")}</span>}
+        </div>
+        <div className="muted small">{t("settings.web_pw_hint")}</div>
+      </div>
+      <label className="check"><input type="checkbox" checked={s.web_lan} onChange={(e) => set("web_lan", e.target.checked)} />{t("settings.web_lan")}</label>
+      {s.web_lan && <LanAddresses chosen={s.web_addresses} setChosen={(v) => set("web_addresses", v)} />}
+      {inBrowser && <div><button className="btn" onClick={() => signOut()}>{t("web.sign_out")}</button></div>}
     </div>
   );
 }

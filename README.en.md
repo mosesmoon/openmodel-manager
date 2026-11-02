@@ -73,6 +73,18 @@ The model server itself listens only on `127.0.0.1`. OpenModel-Manager forwards 
 
 **API key**: set one in Settings, or press Generate. Leave it blank for no key. Once a key is set, clients must send `Authorization: Bearer <key>` (`api_key=` in the example above). llama.cpp, vLLM and Strata check the key; MLX has no authentication. Setting a key is recommended when other computers can connect.
 
+## Web management page
+
+Other computers and phones can open the same management UI in a browser:
+
+1. In the desktop app, go to Settings → Web management page and set a sign-in password (at least 6 characters).
+2. Turn on the switch at the top right (green is on, red is off).
+3. By default only `http://127.0.0.1:8765/` on this computer is opened. To let other devices connect, tick "Let other computers open the web page", then tick the network cards to open.
+
+A browser can't browse that computer's files, so where the window shows a file or folder picker, the web page asks you to type a path. The page uses plain HTTP, so only open it on a network you trust.
+
+The menu can sit on the left, right, top or bottom (Settings → General), and the half-circle button on its edge folds it away. This preference is kept per device and browser.
+
 ## Screenshots
 
 | | |

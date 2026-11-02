@@ -34,6 +34,14 @@
 - i18n：`app/src/i18n.tsx`，繁中為預設，英文完整對應（缺字會在型別檢查時報錯）。
 - 已驗證：`tauri build --debug --no-bundle` 在 Windows 建置成功並能啟動；用模擬後端在瀏覽器跑過全部 8 頁、一輪含工具呼叫的對話、一次 Agent 審批。**尚未**用真的引擎與模型在 app 裡完整跑過。
 
+## 網頁管理介面（`app/src-tauri/src/web.rs`、`app/src/bridge.ts`）
+
+- 桌面程式內建 HTTP 伺服器（axum），提供程式內打包的同一份前端；`POST /api/invoke/<command>` 執行與視窗相同的 command，`GET /api/events` 以 SSE 轉送 `server`／`progress`／`job-done`／`chat`／`approval` 事件。
+- 登入：密碼以加鹽 SHA-256（10 萬次）存在設定檔；登入後發 HttpOnly、SameSite=Strict 的 session cookie，錯誤密碼延遲 1 秒；改密碼會登出所有瀏覽器。`save_settings` 不接受前端送來的密碼雜湊。
+- 預設只聽 127.0.0.1:8765；可另外勾選網卡。開關與網卡變更後重新啟動，先等舊的 socket 關閉再綁定。
+- 瀏覽器裡沒有檔案選擇器：改為輸入路徑；「開啟資料夾」按鈕隱藏。
+- 已實測（Windows debug 版）：登入／錯誤密碼／未登入擋下、指令與 SSE 事件、儲存後重新啟動（本機與 LAN IP）、換連接埠、換密碼後舊 session 失效；瀏覽器內登入、選單四個位置與收合（偏好存在 localStorage）。
+
 ## 尚未驗證（需要使用者在測試機上跑）
 
 - `engine install` 與 `serve` 尚未實際下載引擎與載入模型；只在單元測試中用假程序驗證崩潰流程。

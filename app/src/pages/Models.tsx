@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { inBrowser, pickPath, reveal } from "../bridge";
 import { api, CatalogEntry, gb, HfModel, LocalModel, ManagedModel, MediaModel, RepoListing } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
@@ -252,8 +251,8 @@ function Installed() {
   const load = () => api.library().then(setList, fail);
   useEffect(() => { load(); }, []);
   const importFile = async () => {
-    const p = await open({ multiple: false, filters: [{ name: "GGUF", extensions: ["gguf"] }] });
-    if (typeof p === "string") api.libraryImport(p).then(load, fail);
+    const p = await pickPath({ filters: [{ name: "GGUF", extensions: ["gguf"] }] }, t("common.enter_path"));
+    if (p) api.libraryImport(p).then(load, fail);
   };
   const remove = (m: LocalModel) => {
     if (!m.external && !confirm(t("models.remove_confirm"))) return;
@@ -284,7 +283,7 @@ function Installed() {
                   </td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                     <button className="btn sm primary" onClick={() => go("run", m.path)}>{t("models.run")}</button>{" "}
-                    <button className="btn sm" onClick={() => revealItemInDir(m.path)}>{t("common.open_folder")}</button>{" "}
+                    {!inBrowser && <><button className="btn sm" onClick={() => reveal(m.path)}>{t("common.open_folder")}</button>{" "}</>}
                     <button className="btn sm danger" onClick={() => remove(m)}>{t("common.remove")}</button>
                   </td>
                 </tr>

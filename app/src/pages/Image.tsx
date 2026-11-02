@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { inBrowser, reveal } from "../bridge";
 import { api, MediaModel, MediaOutput } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
@@ -150,7 +150,7 @@ export default function ImagePage() {
         <div className="card">
           <h2>{t("image.outputs")}</h2>
           <div className="gallery">
-            {outputs.map((o) => <img key={o.path} src={o.data_url} title={o.path} onClick={() => revealItemInDir(o.path)} style={{ cursor: "pointer" }} />)}
+            {outputs.map((o) => <img key={o.path} src={o.data_url} title={o.path} onClick={() => reveal(o.path)} style={{ cursor: inBrowser ? undefined : "pointer" }} />)}
           </div>
         </div>
       </div>

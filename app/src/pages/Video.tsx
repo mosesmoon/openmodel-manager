@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { inBrowser, reveal } from "../bridge";
 import { api, MediaModel } from "../api";
 import { useApp } from "../App";
 import { useI18n } from "../i18n";
@@ -84,7 +84,7 @@ export default function VideoPage() {
             {videos.map((v) => (
               <div key={v.path} className="stack" style={{ gap: 4 }}>
                 <video src={v.url} controls loop />
-                <button className="btn sm" onClick={() => revealItemInDir(v.path)}>{t("common.open_folder")}</button>
+                {!inBrowser && <button className="btn sm" onClick={() => reveal(v.path)}>{t("common.open_folder")}</button>}
               </div>
             ))}
           </div>

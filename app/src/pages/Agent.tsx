@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { pickPath } from "../bridge";
 import { useApp } from "../App";
 import { useI18n } from "../i18n";
 import ChatView, { PlanStep } from "./ChatView";
@@ -11,8 +11,8 @@ export default function Agent() {
   const ws = settings.agent_workspace ?? "";
 
   const pick = async () => {
-    const p = await open({ directory: true, multiple: false });
-    if (typeof p === "string") saveSettings({ ...settings, agent_workspace: p }).catch(fail);
+    const p = await pickPath({ directory: true }, t("common.enter_path"));
+    if (p) saveSettings({ ...settings, agent_workspace: p }).catch(fail);
   };
 
   return (

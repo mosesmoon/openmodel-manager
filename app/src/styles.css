@@ -57,7 +57,35 @@ body {
 
 button, input, select, textarea { font: inherit; color: inherit; }
 
-.app { display: grid; grid-template-columns: 200px 1fr; height: 100%; }
+.app { display: grid; grid-template-columns: auto 1fr; height: 100%; }
+.app.pos-right { grid-template-columns: 1fr auto; }
+.app.pos-top { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+.app.pos-bottom { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+.app.pos-right .navwrap, .app.pos-bottom .navwrap { order: 2; }
+.app > .main { min-height: 0; }
+
+/* The menu and its fold button; the button sits on the menu's edge facing the page. */
+.navwrap { position: relative; z-index: 5; display: flex; min-width: 0; min-height: 0; }
+.navwrap > .side { width: 200px; }
+.pos-right .side { border-right: 0; border-left: 1px solid var(--line); }
+.pos-top .side, .pos-bottom .side { width: auto; flex: 1; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 8px 12px; border-right: 0; }
+.pos-top .side { border-bottom: 1px solid var(--line); }
+.pos-bottom .side { border-top: 1px solid var(--line); }
+.pos-top .nav, .pos-bottom .nav { width: auto; }
+.pos-top .brand, .pos-bottom .brand { padding: 4px 12px 4px 4px; }
+.pos-top .side-foot, .pos-bottom .side-foot { margin: 0 0 0 auto; padding: 0 8px; grid-auto-flow: column; gap: 14px; }
+.navfold {
+  position: absolute; display: grid; place-items: center; padding: 0; cursor: pointer;
+  background: var(--accent-soft); color: var(--text); border: 1px solid var(--accent); font-size: 15px; font-weight: 700; line-height: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,.18);
+}
+.navfold:hover { background: var(--accent); color: var(--accent-text); }
+.pos-left .navfold, .pos-right .navfold { top: 50%; width: 18px; height: 44px; transform: translateY(-50%); }
+.pos-left .navfold { left: 100%; border-left: 0; border-radius: 0 22px 22px 0; }
+.pos-right .navfold { right: 100%; border-right: 0; border-radius: 22px 0 0 22px; }
+.pos-top .navfold, .pos-bottom .navfold { left: 50%; width: 44px; height: 18px; transform: translateX(-50%); }
+.pos-top .navfold { top: 100%; border-top: 0; border-radius: 0 0 22px 22px; }
+.pos-bottom .navfold { bottom: 100%; border-bottom: 0; border-radius: 22px 22px 0 0; }
 
 .side { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 10px; gap: 2px; }
 .brand { font-weight: 700; font-size: 15px; padding: 4px 10px 14px; display: flex; align-items: center; gap: 8px; }
@@ -167,3 +195,13 @@ details.tool pre { font-family: var(--mono); font-size: 11.5px; white-space: pre
 .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .chip { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 99px; padding: 3px 12px; font-size: 13px; cursor: pointer; }
 .chip.on { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+
+/* On/off switch: red when off, green when on; the knob slides across. */
+.switch { position: relative; width: 46px; height: 24px; flex: none; padding: 0; border: 0; border-radius: 12px; cursor: pointer; background: #d64545; transition: background .2s; }
+.switch.on { background: #2fa36b; }
+.switch .knob { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: left .2s; }
+.switch.on .knob { left: 25px; }
+.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.signin { height: 100%; display: grid; place-items: center; padding: 16px; }
+.signin form { width: min(340px, 100%); }

@@ -34,6 +34,8 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio_util::sync::CancellationToken;
 
+mod web;
+
 type Res<T> = Result<T, String>;
 
 fn err(e: impl std::fmt::Display) -> String {
@@ -60,6 +62,7 @@ pub struct AppState {
     jobs: Mutex<HashMap<String, CancellationToken>>,
     sessions: Mutex<HashMap<String, Arc<Session>>>,
     http: reqwest::Client,
+    web: web::Web,
 }
 
 impl AppState {
@@ -162,10 +165,27 @@ fn get_settings(state: State<AppState>) -> Settings {
 }
 
 #[tauri::command]
-fn save_settings(state: State<AppState>, settings: Settings) -> Res<()> {
+fn save_settings(app: AppHandle, state: State<AppState>, mut settings: Settings) -> Res<()> {
+    let old = state.settings();
+    // The password only changes through `web_ui_set_password`.
+    settings.web_password = old.web_password.clone();
     settings.save().map_err(errs)?;
+    let web_changed = (old.web_ui, old.web_port, old.web_lan, &old.web_addresses) != (settings.web_ui, settings.web_port, settings.web_lan, &settings.web_addresses);
     *state.settings.write().unwrap() = settings;
+    if web_changed {
+        tauri::async_runtime::spawn(web::restart(app));
+    }
     Ok(())
+}
+
+#[tauri::command]
+fn web_ui_status(state: State<AppState>) -> web::WebStatus {
+    web::status(&state)
+}
+
+#[tauri::command]
+fn web_ui_set_password(state: State<AppState>, password: String) -> Res<()> {
+    web::set_password(&state, &password)
 }
 
 #[tauri::command]
@@ -947,6 +967,7 @@ pub fn run() {
         jobs: Mutex::new(HashMap::new()),
         sessions: Mutex::new(HashMap::new()),
         http: openmodel_core::http_client(),
+        web: web::Web::default(),
     };
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -957,6 +978,8 @@ pub fn run() {
             let st = app.state::<AppState>();
             forward_server_events(&h, "llm", &st.llm);
             forward_server_events(&h, "sd", &st.sd);
+            web::relay_events(&h);
+            tauri::async_runtime::spawn(web::restart(h.clone()));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1005,6 +1028,8 @@ pub fn run() {
             chat_stop,
             approval_resolve,
             endpoint_models,
+            web_ui_status,
+            web_ui_set_password,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the app");

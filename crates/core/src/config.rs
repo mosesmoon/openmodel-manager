@@ -41,7 +41,7 @@ pub struct Settings {
     pub server_port: u16,
     /// Port used by sd-server (moves up if busy).
     pub image_port: u16,
-    /// Listen on 0.0.0.0 instead of 127.0.0.1.
+    /// Open the model servers to other computers (see `lan_addresses`).
     pub lan_access: bool,
     /// Addresses to open the servers on when `lan_access` is set; empty
     /// means every LAN address this computer has.
@@ -50,6 +50,14 @@ pub struct Settings {
     /// Key clients of the local LLM server must send; blank means none.
     #[serde(default)]
     pub server_api_key: Option<String>,
+    /// Web management page: the same UI served to browsers on other devices.
+    pub web_ui: bool,
+    pub web_port: u16,
+    /// Open the web page to other computers, on `web_addresses` (empty: all).
+    pub web_lan: bool,
+    pub web_addresses: Vec<String>,
+    /// Salted hash of the web page password (see [`hash_password`]).
+    pub web_password: Option<String>,
     /// Preferred backend; None = pick automatically.
     pub backend: Option<crate::hardware::Backend>,
     pub gpu_override: Option<GpuOverride>,
@@ -91,6 +99,11 @@ impl Default for Settings {
             lan_access: false,
             server_api_key: None,
             lan_addresses: vec![],
+            web_ui: false,
+            web_port: 8765,
+            web_lan: false,
+            web_addresses: vec![],
+            web_password: None,
             backend: None,
             gpu_override: None,
             custom_args: HashMap::new(),
@@ -98,6 +111,41 @@ impl Default for Settings {
             agent_workspace: None,
         }
     }
+}
+
+/// The chosen addresses this computer still has, or all of its LAN
+/// addresses when none are chosen.
+fn pick_addresses(open: bool, chosen: &[String]) -> Vec<std::net::IpAddr> {
+    if !open {
+        return vec![];
+    }
+    let have: Vec<String> = crate::net::lan_addresses().into_iter().map(|a| a.ip).collect();
+    let pick: Vec<&String> = if chosen.is_empty() { have.iter().collect() } else { chosen.iter().filter(|a| have.contains(a)).collect() };
+    pick.into_iter().filter_map(|a| a.parse().ok()).collect()
+}
+
+const PW_ROUNDS: u32 = 100_000;
+
+/// `salt$hex`: SHA-256 iterated over a random salt and the password.
+pub fn hash_password(password: &str) -> String {
+    let salt = uuid::Uuid::new_v4().simple().to_string();
+    format!("{salt}${}", pw_digest(&salt, password))
+}
+
+pub fn verify_password(stored: &str, password: &str) -> bool {
+    let Some((salt, want)) = stored.split_once('$') else { return false };
+    let got = pw_digest(salt, password);
+    // Compare every byte so the time taken does not depend on where they differ.
+    got.len() == want.len() && got.bytes().zip(want.bytes()).fold(0u8, |d, (a, b)| d | (a ^ b)) == 0
+}
+
+fn pw_digest(salt: &str, password: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut h = Sha256::digest(format!("{salt}:{password}").as_bytes());
+    for _ in 1..PW_ROUNDS {
+        h = Sha256::digest(h);
+    }
+    h.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 pub const GIB: u64 = 1024 * 1024 * 1024;
@@ -186,12 +234,12 @@ impl Settings {
     /// themselves bind 127.0.0.1; see [`crate::net`]). Chosen addresses that
     /// this computer no longer has are skipped.
     pub fn exposed_ips(&self) -> Vec<std::net::IpAddr> {
-        if !self.lan_access {
-            return vec![];
-        }
-        let have: Vec<String> = crate::net::lan_addresses().into_iter().map(|a| a.ip).collect();
-        let pick: Vec<&String> = if self.lan_addresses.is_empty() { have.iter().collect() } else { self.lan_addresses.iter().filter(|a| have.contains(a)).collect() };
-        pick.into_iter().filter_map(|a| a.parse().ok()).collect()
+        pick_addresses(self.lan_access, &self.lan_addresses)
+    }
+
+    /// Addresses the web management page is opened on besides 127.0.0.1.
+    pub fn web_ips(&self) -> Vec<std::net::IpAddr> {
+        pick_addresses(self.web_lan, &self.web_addresses)
     }
 
     /// Apply the optional mirror prefix to a GitHub download URL.
@@ -240,5 +288,14 @@ mod tests {
         let s: Settings = serde_json::from_str(r#"{"server_port": 9000}"#).unwrap();
         assert_eq!(s.server_port, 9000);
         assert_eq!(s.image_port, 7860);
+    }
+
+    #[test]
+    fn passwords() {
+        let h = super::hash_password("correct horse");
+        assert!(super::verify_password(&h, "correct horse"));
+        assert!(!super::verify_password(&h, "correct horsE"));
+        assert!(!super::verify_password("garbage", "x"));
+        assert_ne!(h, super::hash_password("correct horse")); // salted
     }
 }

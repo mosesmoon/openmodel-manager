@@ -1,6 +1,6 @@
 // Typed wrappers around the Tauri commands in src-tauri/src/lib.rs.
-import { invoke } from "@tauri-apps/api/core";
-import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { invoke } from "./bridge";
+export { on } from "./bridge";
 
 export type Backend = "cuda" | "rocm" | "vulkan" | "metal" | "sycl" | "cpu";
 export type EngineKind = "llama" | "sd";
@@ -26,6 +26,11 @@ export interface Settings {
   lan_access: boolean;
   server_api_key: string | null;
   lan_addresses: string[];
+  web_ui: boolean;
+  web_port: number;
+  web_lan: boolean;
+  web_addresses: string[];
+  web_password: string | null;
   backend: Backend | null;
   gpu_override: { vendor: string; name: string; vram_gb: number } | null;
   custom_args: Record<string, string>;
@@ -81,6 +86,7 @@ export interface Engines { llama: InstalledEngine[]; sd: InstalledEngine[]; reco
 
 export type ServerState = "stopped" | "starting" | "ready" | "crashed";
 export interface ServerStatus { state: ServerState; port: number; model: string | null; engine: string; safe_level: number; gpu_layers: [number, number] | null; api_key: string | null; exposed: string[]; last_crash: { problems: string[]; exit_code: number | null; tail: string[] } | null }
+export interface WebStatus { running: boolean; urls: string[]; error: string | null }
 export interface NetAddr { name: string; ip: string }
 export interface LoadProgress { stage: string; fraction: number; elapsed_secs: number }
 export type ServerEvent =
@@ -158,11 +164,10 @@ export const api = {
   chatStop: (session: string) => invoke<void>("chat_stop", { session }),
   approve: (session: string, id: string, decision: Decision) => invoke<boolean>("approval_resolve", { session, id, decision }),
   endpointModels: (endpoint: Endpoint) => invoke<string[]>("endpoint_models", { endpoint }),
+  webStatus: () => invoke<WebStatus>("web_ui_status"),
+  webSetPassword: (password: string) => invoke<void>("web_ui_set_password", { password }),
 };
 
-export function on<T>(event: string, cb: (payload: T) => void): Promise<UnlistenFn> {
-  return listen<T>(event, (e) => cb(e.payload));
-}
 
 export function gb(bytes: number | null | undefined, digits = 1): string {
   if (bytes == null) return "—";
