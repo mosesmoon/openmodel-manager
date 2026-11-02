@@ -262,16 +262,18 @@ mod tests {
     #[test]
     fn folders_inside_the_data_dir_are_saved_relative() {
         let base = std::env::temp_dir().join("OpenModelData");
-        let s = Settings { models_dir: base.join("models"), engines_dir: PathBuf::from("D:/elsewhere/engines"), outputs_dir: base.join("outputs"), ..Settings::default() };
+        // A folder outside the data dir, absolute on every platform.
+        let elsewhere = if cfg!(windows) { PathBuf::from("D:/elsewhere/engines") } else { PathBuf::from("/elsewhere/engines") };
+        let s = Settings { models_dir: base.join("models"), engines_dir: elsewhere.clone(), outputs_dir: base.join("outputs"), ..Settings::default() };
         let rel = s.relative_to(&base);
         assert_eq!(rel.models_dir, PathBuf::from("models"));
-        assert_eq!(rel.engines_dir, PathBuf::from("D:/elsewhere/engines"));
+        assert_eq!(rel.engines_dir, elsewhere);
         // Moved to another place: the relative folders follow.
         let moved = std::env::temp_dir().join("usb").join("OpenModelData");
         let back = rel.resolved_in(&moved);
         assert_eq!(back.models_dir, moved.join("models"));
         assert_eq!(back.outputs_dir, moved.join("outputs"));
-        assert_eq!(back.engines_dir, PathBuf::from("D:/elsewhere/engines"));
+        assert_eq!(back.engines_dir, elsewhere);
     }
 
     #[test]
