@@ -58,6 +58,9 @@ pub struct Settings {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct NamedEndpoint {
     pub name: String,
+    /// Preset the entry was made from ("anthropic", "xai", "custom", ...).
+    #[serde(default)]
+    pub provider: Option<String>,
     #[serde(flatten)]
     pub endpoint: crate::llm::Endpoint,
 }

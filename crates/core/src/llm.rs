@@ -1,8 +1,9 @@
-//! OpenAI-compatible chat client: streaming, and the tool-calling loop used by
-//! the chat page and the Agent page.
+//! Chat client: streaming, and the tool-calling loop used by the chat page and
+//! the Agent page.
 //!
-//! The same code talks to the local llama-server and to any remote endpoint
-//! the user configures (base URL + optional API key + model name).
+//! History is kept in OpenAI's message shape. OpenAI-compatible endpoints (the
+//! local llama-server, OpenAI, Google AI Studio, xAI, NVIDIA NIM, ...) get it
+//! as is; Anthropic endpoints go through `crate::anthropic`.
 
 use anyhow::{bail, Context, Result};
 use futures_util::StreamExt;
@@ -12,7 +13,18 @@ use std::collections::BTreeMap;
 use std::future::Future;
 use tokio_util::sync::CancellationToken;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// Wire protocol of an endpoint.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ApiKind {
+    /// `POST /chat/completions`, bearer key.
+    #[default]
+    Openai,
+    /// Anthropic Messages API (`POST /messages`, `x-api-key`).
+    Anthropic,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct Endpoint {
     /// e.g. http://127.0.0.1:8080/v1 or https://api.example.com/v1
     pub base_url: String,
@@ -21,6 +33,8 @@ pub struct Endpoint {
     /// Ignored by llama-server; required by most hosted APIs.
     #[serde(default)]
     pub model: String,
+    #[serde(default)]
+    pub kind: ApiKind,
 }
 
 impl Endpoint {
@@ -55,6 +69,8 @@ pub struct Turn {
     pub reasoning: String,
     pub tool_calls: Vec<ToolCall>,
     pub finish_reason: Option<String>,
+    /// Raw content blocks of an Anthropic reply, replayed unchanged.
+    pub native: Option<Value>,
 }
 
 impl Turn {
@@ -68,8 +84,59 @@ impl Turn {
                 .map(|c| json!({"id": c.id, "type": "function", "function": {"name": c.name, "arguments": c.arguments}}))
                 .collect();
         }
+        if let Some(n) = &self.native {
+            m[crate::anthropic::NATIVE_KEY] = n.clone();
+        }
         m
     }
+}
+
+/// History for an OpenAI-compatible server: drop our private `_` keys.
+fn openai_messages(messages: &[Value]) -> Vec<Value> {
+    messages
+        .iter()
+        .map(|m| match m {
+            Value::Object(o) if o.keys().any(|k| k.starts_with('_')) => Value::Object(o.iter().filter(|(k, _)| !k.starts_with('_')).map(|(k, v)| (k.clone(), v.clone())).collect()),
+            other => other.clone(),
+        })
+        .collect()
+}
+
+/// Read an SSE body, calling `f` with each `data:` payload until it returns
+/// `Ok(true)`, the body ends, or `cancel` fires.
+async fn for_each_sse(resp: reqwest::Response, cancel: &CancellationToken, mut f: impl FnMut(&str) -> Result<bool>) -> Result<()> {
+    let mut buf: Vec<u8> = vec![];
+    let mut stream = resp.bytes_stream();
+    loop {
+        let chunk = tokio::select! {
+            c = stream.next() => c,
+            _ = cancel.cancelled() => bail!(crate::download::Cancelled),
+        };
+        let Some(chunk) = chunk else { return Ok(()) };
+        buf.extend_from_slice(&chunk?);
+        while let Some(nl) = buf.iter().position(|b| *b == b'\n') {
+            let line: Vec<u8> = buf.drain(..=nl).collect();
+            let line = String::from_utf8_lossy(&line);
+            if let Some(data) = sse_data(line.trim_end_matches('\n')) {
+                if f(data)? {
+                    return Ok(());
+                }
+            }
+        }
+    }
+}
+
+async fn send(req: reqwest::RequestBuilder, ep: &Endpoint, cancel: &CancellationToken) -> Result<reqwest::Response> {
+    let resp = tokio::select! {
+        r = req.send() => r.with_context(|| format!("cannot reach {}", ep.base_url))?,
+        _ = cancel.cancelled() => bail!(crate::download::Cancelled),
+    };
+    if !resp.status().is_success() {
+        let st = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        bail!("{st}: {}", crate::tools::truncate(&text, 2000));
+    }
+    Ok(resp)
 }
 
 /// Assembles streamed chunks. Tool call fragments arrive keyed by `index`;
@@ -153,9 +220,12 @@ pub async fn stream_turn(
     cancel: &CancellationToken,
     on_event: &(dyn Fn(ChatEvent) + Send + Sync),
 ) -> Result<Turn> {
+    if ep.kind == ApiKind::Anthropic {
+        return stream_turn_anthropic(http, ep, messages, tools, cancel, on_event).await;
+    }
     let mut body = json!({
         "model": if ep.model.is_empty() { "local" } else { ep.model.as_str() },
-        "messages": messages,
+        "messages": openai_messages(messages),
         "stream": true,
         "stream_options": {"include_usage": true},
     });
@@ -166,44 +236,51 @@ pub async fn stream_turn(
     if let Some(k) = ep.api_key.as_deref().filter(|k| !k.is_empty()) {
         req = req.bearer_auth(k);
     }
-    let resp = tokio::select! {
-        r = req.send() => r.with_context(|| format!("cannot reach {}", ep.base_url))?,
-        _ = cancel.cancelled() => bail!(crate::download::Cancelled),
-    };
-    if !resp.status().is_success() {
-        let st = resp.status();
-        let text = resp.text().await.unwrap_or_default();
-        bail!("{st}: {}", crate::tools::truncate(&text, 2000));
-    }
+    let resp = send(req, ep, cancel).await?;
     let mut acc = StreamAccumulator::default();
-    let mut buf: Vec<u8> = vec![];
-    let mut stream = resp.bytes_stream();
-    'outer: loop {
-        let chunk = tokio::select! {
-            c = stream.next() => c,
-            _ = cancel.cancelled() => bail!(crate::download::Cancelled),
-        };
-        let Some(chunk) = chunk else { break };
-        buf.extend_from_slice(&chunk?);
-        while let Some(nl) = buf.iter().position(|b| *b == b'\n') {
-            let line: Vec<u8> = buf.drain(..=nl).collect();
-            let line = String::from_utf8_lossy(&line);
-            let Some(data) = sse_data(line.trim_end_matches('\n')) else { continue };
-            if data == "[DONE]" {
-                break 'outer;
-            }
-            let v: Value = match serde_json::from_str(data) {
-                Ok(v) => v,
-                Err(_) => continue,
-            };
-            if let Some(err) = v.get("error") {
-                bail!("server error: {}", err.get("message").and_then(Value::as_str).map(String::from).unwrap_or_else(|| err.to_string()));
-            }
-            for e in acc.feed(&v) {
-                on_event(e);
-            }
+    for_each_sse(resp, cancel, |data| {
+        if data == "[DONE]" {
+            return Ok(true);
         }
+        let Ok(v) = serde_json::from_str::<Value>(data) else { return Ok(false) };
+        if let Some(err) = v.get("error") {
+            bail!("server error: {}", err.get("message").and_then(Value::as_str).map(String::from).unwrap_or_else(|| err.to_string()));
+        }
+        for e in acc.feed(&v) {
+            on_event(e);
+        }
+        Ok(false)
+    })
+    .await?;
+    Ok(acc.finish())
+}
+
+async fn stream_turn_anthropic(
+    http: &reqwest::Client,
+    ep: &Endpoint,
+    messages: &[Value],
+    tools: &[Value],
+    cancel: &CancellationToken,
+    on_event: &(dyn Fn(ChatEvent) + Send + Sync),
+) -> Result<Turn> {
+    if ep.model.is_empty() {
+        bail!("choose a model for this Anthropic endpoint (Settings → AI service providers)");
     }
+    let mut req = http.post(crate::anthropic::messages_url(ep)).json(&crate::anthropic::request_body(ep, messages, tools));
+    for (k, v) in crate::anthropic::headers(ep) {
+        req = req.header(k, v);
+    }
+    let resp = send(req, ep, cancel).await?;
+    let mut acc = crate::anthropic::Accumulator::default();
+    for_each_sse(resp, cancel, |data| {
+        let Ok(v) = serde_json::from_str::<Value>(data) else { return Ok(false) };
+        match acc.feed(&v) {
+            Ok(evs) => evs.into_iter().for_each(on_event),
+            Err(msg) => bail!("server error: {msg}"),
+        }
+        Ok(v.get("type").and_then(Value::as_str) == Some("message_stop"))
+    })
+    .await?;
     Ok(acc.finish())
 }
 
@@ -271,7 +348,16 @@ where
 
 /// Model names offered by an endpoint (`GET /models`).
 pub async fn list_models(http: &reqwest::Client, ep: &Endpoint) -> Result<Vec<String>> {
-    let mut req = http.get(format!("{}/models", ep.base_url.trim_end_matches('/')));
+    let url = format!("{}/models", ep.base_url.trim_end_matches('/'));
+    if ep.kind == ApiKind::Anthropic {
+        let mut req = http.get(url).query(&[("limit", "1000")]);
+        for (k, v) in crate::anthropic::headers(ep) {
+            req = req.header(k, v);
+        }
+        let v: Value = req.send().await?.error_for_status()?.json().await?;
+        return Ok(crate::anthropic::model_ids(&v));
+    }
+    let mut req = http.get(url);
     if let Some(k) = ep.api_key.as_deref().filter(|k| !k.is_empty()) {
         req = req.bearer_auth(k);
     }
@@ -357,7 +443,7 @@ mod tests {
             seen.clone(),
         )
         .await;
-        let ep = Endpoint { base_url: base, api_key: None, model: String::new() };
+        let ep = Endpoint { base_url: base, ..Default::default() };
         let mut msgs = vec![json!({"role": "user", "content": "6*7?"})];
         let events = Arc::new(Mutex::new(vec![]));
         let ev2 = events.clone();
@@ -380,6 +466,53 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn anthropic_tool_loop_round_trip() {
+        fn ev(v: Value) -> String {
+            format!("event: {}\ndata: {v}\n\n", v["type"].as_str().unwrap())
+        }
+        let first = [
+            json!({"type": "message_start", "message": {"usage": {"input_tokens": 10}}}),
+            json!({"type": "content_block_start", "index": 0, "content_block": {"type": "thinking", "thinking": ""}}),
+            json!({"type": "content_block_delta", "index": 0, "delta": {"type": "signature_delta", "signature": "sig"}}),
+            json!({"type": "content_block_stop", "index": 0}),
+            json!({"type": "content_block_start", "index": 1, "content_block": {"type": "tool_use", "id": "toolu_9", "name": "calculator", "input": {}}}),
+            json!({"type": "content_block_delta", "index": 1, "delta": {"type": "input_json_delta", "partial_json": "{\"expression\":\"6*7\"}"}}),
+            json!({"type": "content_block_stop", "index": 1}),
+            json!({"type": "message_delta", "delta": {"stop_reason": "tool_use"}, "usage": {"output_tokens": 9}}),
+            json!({"type": "message_stop"}),
+        ];
+        let second = [
+            json!({"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}}),
+            json!({"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "42."}}),
+            json!({"type": "content_block_stop", "index": 0}),
+            json!({"type": "message_delta", "delta": {"stop_reason": "end_turn"}, "usage": {"output_tokens": 3}}),
+            json!({"type": "message_stop"}),
+        ];
+        let seen = Arc::new(Mutex::new(vec![]));
+        let base = mock(vec![first.into_iter().map(ev).collect(), second.into_iter().map(ev).collect()], seen.clone()).await;
+        let ep = Endpoint { base_url: base, api_key: Some("k".into()), model: "claude-opus-5-5".into(), kind: ApiKind::Anthropic };
+        let mut msgs = vec![json!({"role": "system", "content": "sys"}), json!({"role": "user", "content": "6*7?"})];
+        run_with_tools(&crate::http_client(), &ep, &mut msgs, &crate::tools::ChatToolbox::schemas(), 5, &CancellationToken::new(), &|_| {}, |_, args| async move {
+            crate::tools::calculator(args["expression"].as_str().unwrap())
+        })
+        .await
+        .unwrap();
+        assert_eq!(msgs.last().unwrap()["content"], "42.");
+        let s = seen.lock().unwrap();
+        assert_eq!(s[0]["system"], "sys");
+        // Second request: thinking block (with signature) + tool_use replayed, then the tool result.
+        assert_eq!(s[1]["messages"][1]["content"][0]["signature"], "sig");
+        assert_eq!(s[1]["messages"][1]["content"][1]["id"], "toolu_9");
+        assert_eq!(s[1]["messages"][2]["content"][0], json!({"type": "tool_result", "tool_use_id": "toolu_9", "content": "42"}));
+    }
+
+    #[test]
+    fn private_keys_never_reach_openai_servers() {
+        let m = openai_messages(&[json!({"role": "assistant", "content": "x", "_anthropic": []})]);
+        assert_eq!(m[0], json!({"role": "assistant", "content": "x"}));
+    }
+
+    #[tokio::test]
     async fn denied_tool_is_reported_to_the_model() {
         let seen = Arc::new(Mutex::new(vec![]));
         let base = mock(
@@ -390,7 +523,7 @@ mod tests {
             seen,
         )
         .await;
-        let ep = Endpoint { base_url: base, api_key: None, model: String::new() };
+        let ep = Endpoint { base_url: base, ..Default::default() };
         let mut msgs = vec![json!({"role": "user", "content": "clean up"})];
         run_with_tools(&crate::http_client(), &ep, &mut msgs, &[], 5, &CancellationToken::new(), &|_| {}, |_, _| async { Err(crate::tools::Denied("Run: rm -rf /".into()).into()) }).await.unwrap();
         assert!(msgs[2]["content"].as_str().unwrap().contains("declined"));

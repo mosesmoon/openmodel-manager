@@ -63,7 +63,7 @@ export default function ChatView({ mode, workspace, onPlan, toolbar }: Props) {
   const endpoint = (): Endpoint | null => {
     if (source === "local") return null;
     const e = settings.endpoints.find((x) => x.name === source);
-    return e ? { base_url: e.base_url, api_key: e.api_key, model: e.model } : null;
+    return e ? { base_url: e.base_url, api_key: e.api_key, model: e.model, kind: e.kind ?? "openai" } : null;
   };
 
   const send = async () => {

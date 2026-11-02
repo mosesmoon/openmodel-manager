@@ -21,6 +21,7 @@
 | `agent` | 工作資料夾沙箱（解析 `..` 與 symlink 後判斷）、11 個工具的 schema、資料夾外讀寫與 `run_command` / `delete_path` 一律詢問 | 5 |
 | `library` | 掃描本機模型（分卷只列一次、自動配對 mmproj）、登記外部模型（不複製、移除時不刪檔） | 1 |
 | `llm` | OpenAI 相容串流（SSE，含 `reasoning_content`、分段 tool call、usage / tok/s）；工具迴圈（拒絕的工具以結果回報給模型、可取消）；`/models` 列表；本機與遠端 endpoint 共用 | 3 |
+| `anthropic` | Anthropic Messages API（raw HTTP，`anthropic-version: 2026-10-21`）：把 OpenAI 形狀的對話轉成 Messages 格式（system、圖片、`tool_use`／`tool_result` 合併）、解析 SSE（text／thinking／signature／`input_json_delta`／usage／錯誤）；每輪的原始內容區塊存在訊息的 `_anthropic` 欄位、下一輪原樣送回；新模型開 adaptive thinking（summarized）與 `fallbacks: "default"`。設定頁「AI 服務供應商」：Anthropic、OpenAI、Google AI Studio、xAI、NVIDIA NIM、自訂 OpenAI 相容。訂閱登入（ChatGPT／Codex、Claude OAuth）不做：目前做法都要冒用官方 CLI 身分 | 4 |
 
 `crates/cli`：`openmodel hw | gguf | catalog | plan | hf search/files/download | models | engine list/install/import | serve`。
 

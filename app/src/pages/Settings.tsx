@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { openPath } from "@tauri-apps/plugin-opener";
+import { openPath, openUrl } from "@tauri-apps/plugin-opener";
 import { api, Backend, EngineKind, Engines, NamedEndpoint, Settings } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
+import { findProvider, PROVIDERS } from "../providers";
 
 const BACKENDS: Backend[] = ["cuda", "rocm", "vulkan", "metal", "sycl", "cpu"];
 const GIB = 1024 ** 3;
@@ -179,24 +180,51 @@ function EndpointsCard({ list, setList }: { list: NamedEndpoint[]; setList: (l: 
   const [models, setModels] = useState<Record<number, string[]>>({});
   const upd = (i: number, patch: Partial<NamedEndpoint>) => setList(list.map((e, j) => (j === i ? { ...e, ...patch } : e)));
   const fetchModels = (i: number) => api.endpointModels(list[i]).then((m) => setModels({ ...models, [i]: m }), fail);
+  // Switching the preset rewrites the address, protocol and (when still a preset name) the label.
+  const pick = (i: number, id: string) => {
+    const p = findProvider(id);
+    const e = list[i];
+    const named = !e.name || PROVIDERS.some((x) => x.name === e.name);
+    upd(i, { provider: p.id, kind: p.kind, base_url: p.id === "custom" ? e.base_url : p.base_url, model: p.model || "", name: named ? p.name : e.name });
+    setModels({ ...models, [i]: [] });
+  };
+  const add = (id: string) => {
+    const p = findProvider(id);
+    setList([...list, { name: p.name, provider: p.id, kind: p.kind, base_url: p.base_url, api_key: null, model: p.model }]);
+  };
   return (
     <div className="card stack">
       <h2>{t("settings.endpoints")}</h2>
       <div className="muted small">{t("settings.endpoint_hint")}</div>
-      {list.map((e, i) => (
-        <div key={i} className="row">
-          <input type="text" style={{ width: 120 }} placeholder={t("settings.name")} value={e.name} onChange={(x) => upd(i, { name: x.target.value })} />
-          <input type="text" className="grow" placeholder="https://api.example.com/v1" value={e.base_url} onChange={(x) => upd(i, { base_url: x.target.value })} />
-          <input type="password" style={{ width: 160 }} placeholder="API key" value={e.api_key ?? ""} onChange={(x) => upd(i, { api_key: x.target.value || null })} />
-          <input type="text" list={`models-${i}`} style={{ width: 180 }} placeholder="model" value={e.model} onChange={(x) => upd(i, { model: x.target.value })} />
-          <datalist id={`models-${i}`}>{(models[i] ?? []).map((m) => <option key={m} value={m} />)}</datalist>
-          <button className="btn sm" onClick={() => fetchModels(i)}>↻</button>
-          <button className="btn sm danger" onClick={() => setList(list.filter((_, j) => j !== i))}>×</button>
-        </div>
-      ))}
-      <div>
-        <button className="btn sm" onClick={() => setList([...list, { name: `API ${list.length + 1}`, base_url: "", api_key: null, model: "" }])}>{t("settings.add")}</button>
+      {list.map((e, i) => {
+        const p = findProvider(e.provider);
+        return (
+          <div key={i} className="stack" style={{ gap: 6, borderTop: i ? "1px solid var(--line)" : undefined, paddingTop: i ? 10 : 0 }}>
+            <div className="row">
+              <select value={p.id} onChange={(x) => pick(i, x.target.value)} title={t("settings.provider")}>
+                {PROVIDERS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+              </select>
+              <input type="text" style={{ width: 160 }} placeholder={t("settings.name")} value={e.name} onChange={(x) => upd(i, { name: x.target.value })} />
+              <input type="text" className="grow mono" placeholder="https://api.example.com/v1" value={e.base_url} readOnly={p.id !== "custom"} onChange={(x) => upd(i, { base_url: x.target.value })} />
+              <button className="btn sm danger" onClick={() => setList(list.filter((_, j) => j !== i))}>×</button>
+            </div>
+            <div className="row">
+              <input type="password" className="grow" placeholder="API key" value={e.api_key ?? ""} onChange={(x) => upd(i, { api_key: x.target.value || null })} />
+              {p.key_url && <button className="btn sm" onClick={() => openUrl(p.key_url).catch(fail)}>{t("settings.get_key")}</button>}
+              <input type="text" list={`models-${i}`} style={{ width: 220 }} placeholder="model" value={e.model} onChange={(x) => upd(i, { model: x.target.value })} />
+              <datalist id={`models-${i}`}>{(models[i] ?? []).map((m) => <option key={m} value={m} />)}</datalist>
+              <button className="btn sm" title="List models" onClick={() => fetchModels(i)}>↻</button>
+            </div>
+          </div>
+        );
+      })}
+      <div className="row">
+        <select value="" onChange={(x) => x.target.value && add(x.target.value)}>
+          <option value="">{t("settings.add_provider")}</option>
+          {PROVIDERS.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+        </select>
       </div>
+      <div className="muted small">{t("settings.no_subscription")}</div>
     </div>
   );
 }

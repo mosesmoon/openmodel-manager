@@ -6,8 +6,9 @@ export type Backend = "cuda" | "rocm" | "vulkan" | "metal" | "sycl" | "cpu";
 export type EngineKind = "llama" | "sd";
 export type Tier = "fast" | "ok" | "slow" | "crawl";
 
-export interface Endpoint { base_url: string; api_key?: string | null; model: string }
-export interface NamedEndpoint extends Endpoint { name: string }
+export type ApiKind = "openai" | "anthropic";
+export interface Endpoint { base_url: string; api_key?: string | null; model: string; kind?: ApiKind }
+export interface NamedEndpoint extends Endpoint { name: string; provider?: string | null }
 
 export interface Settings {
   models_dir: string;
