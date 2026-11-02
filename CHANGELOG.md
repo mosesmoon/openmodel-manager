@@ -7,6 +7,16 @@ This file records the changes in each version, loosely following [Keep a Changel
 > Beta 版的程式內版本號仍是 0.1.0，安裝檔檔名也是 `0.1.0`，正式發行 0.1.1 時才會更新。
 > Beta builds still carry version 0.1.0 inside the app and in the installer file names; it changes at the 0.1.1 release.
 
+## [0.1.1-beta.4] - 2026-11-02
+
+### 修正
+- 「模型還沒下載」的提示改為指向正確的分頁「模型 → AI 生圖 / 影片」。
+- 概覽與設定頁的「畫圖 / 影片」改稱「AI 生成圖片 / 影片」。
+
+### Fixed
+- The "model not downloaded" hint now points to the right tab, Models → AI image / video.
+- "Image / video" on the Overview and Settings pages is now "AI image / video".
+
 ## [0.1.1-beta.3] - 2026-11-02
 
 ### 新增
@@ -115,6 +125,7 @@ Summary in English:
 - **Packaging**: Windows MSI and portable zip, Linux AppImage/deb/Flatpak, macOS DMG.
 - **Docs**: README in Traditional Chinese and English, with screenshots of every page.
 
+[0.1.1-beta.4]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.3...v0.1.1-beta.4
 [0.1.1-beta.3]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.2...v0.1.1-beta.3
 [0.1.1-beta.2]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.1...v0.1.1-beta.2
 [0.1.1-beta.1]: https://github.com/mosesmoon/openmodel-manager/releases/tag/v0.1.1-beta.1
