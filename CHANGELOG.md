@@ -7,7 +7,7 @@ This file records the changes in each version, loosely following [Keep a Changel
 > Beta 版的程式內版本號仍是 0.1.0，安裝檔檔名也是 `0.1.0`，正式發行 0.1.1 時才會更新。
 > Beta builds still carry version 0.1.0 inside the app and in the installer file names; it changes at the 0.1.1 release.
 
-## [Unreleased]
+## [0.1.1-beta.5] - 2026-11-03
 
 ### 新增
 - 設定新增「自動上下文至少」，預設 64K：「上下文長度」選自動時（包括 JIT 自動掛載）至少用這個大小，讓 Hermes 等需要 64K 以上的 Agent 可以使用。
@@ -155,6 +155,7 @@ Summary in English:
 - **Packaging**: Windows MSI and portable zip, Linux AppImage/deb/Flatpak, macOS DMG.
 - **Docs**: README in Traditional Chinese and English, with screenshots of every page.
 
+[0.1.1-beta.5]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.4...v0.1.1-beta.5
 [0.1.1-beta.4]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.3...v0.1.1-beta.4
 [0.1.1-beta.3]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.2...v0.1.1-beta.3
 [0.1.1-beta.2]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.1...v0.1.1-beta.2

@@ -88,6 +88,8 @@ The model server itself listens only on `127.0.0.1`. OpenModel-Manager's API gat
 
 Without JIT, every call goes to the model that is running, and the API answers 503 when none is.
 
+**Context length**: agents such as Hermes need a context of 64K or more. "Auto context at least" in Settings is 64K by default, so an automatic context (including JIT loads) is never smaller.
+
 **API key**: set one in Settings, or press Generate. Leave it blank for no key. Once a key is set, clients must send `Authorization: Bearer <key>` (`api_key=` in the example above). llama.cpp, vLLM and Strata check the key; MLX has no authentication. Setting a key is recommended when other computers can connect.
 
 ## Web management page

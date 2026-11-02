@@ -83,6 +83,8 @@ print(r.choices[0].message.content)
 
 沒開 JIT 時，所有呼叫都交給目前執行中的模型；沒有模型在執行時會回傳 503。
 
+**上下文長度**：Hermes 等 Agent 需要 64K 以上的上下文。「設定」的「自動上下文至少」預設 64K，上下文選自動（包括 JIT 自動掛載）時不會小於這個大小。
+
 **API key**：可在「設定」填入或按「產生」，留空就是不需要 key。設定後，用戶端要帶 `Authorization: Bearer <key>`（上面範例的 `api_key=`）。llama.cpp、vLLM、Strata 都會檢查 key，MLX 沒有驗證功能。開放給其他電腦時建議設定 key。
 
 ## 網頁管理介面
