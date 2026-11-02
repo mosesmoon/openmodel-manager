@@ -12,8 +12,14 @@ This file records the changes in each version, loosely following [Keep a Changel
 ### 新增
 - 設定新增「自動上下文至少」，預設 64K：「上下文長度」選自動時（包括 JIT 自動掛載）至少用這個大小，讓 Hermes 等需要 64K 以上的 Agent 可以使用。
 
+### 變更
+- 導覽選單預設放在畫面上方。已經選過位置的裝置維持原本的選擇。
+
 ### Added
 - New setting "Auto context at least", 64K by default: an automatic context length (including JIT loads) is never smaller, so agents such as Hermes that need 64K or more can use the model.
+
+### Changed
+- The navigation menu now sits at the top by default. Devices where a position was already chosen keep it.
 
 ## [0.1.1-beta.4] - 2026-11-03
 

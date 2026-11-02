@@ -24,7 +24,7 @@ function loadNav(): NavPref {
     const v = JSON.parse(localStorage.getItem(NAV_KEY) ?? "null");
     if (v && ["left", "right", "top", "bottom"].includes(v.pos)) return { pos: v.pos, collapsed: !!v.collapsed };
   } catch { /* storage blocked or a bad value */ }
-  return { pos: "left", collapsed: false };
+  return { pos: "top", collapsed: false };
 }
 
 interface Job { id: string; label: string; progress?: Progress; onDone?: (d: JobDone) => void }
