@@ -11,11 +11,9 @@ This file records the changes in each version, loosely following [Keep a Changel
 
 ### 修正
 - 「模型還沒下載」的提示改為指向正確的分頁「模型 → AI 生圖 / 影片」。
-- 概覽與設定頁的「畫圖 / 影片」改稱「AI 生成圖片 / 影片」。
 
 ### Fixed
 - The "model not downloaded" hint now points to the right tab, Models → AI image / video.
-- "Image / video" on the Overview and Settings pages is now "AI image / video".
 
 ## [0.1.1-beta.3] - 2026-11-02
 
