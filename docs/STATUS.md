@@ -50,6 +50,18 @@ openmodel hf download unsloth/gpt-oss-20b-GGUF Q4_K_M
 openmodel serve <models_dir>/unsloth__gpt-oss-20b-GGUF/gpt-oss-20b-Q4_K_M.gguf -v
 ```
 
+## 封裝（`packaging/`）
+
+| 平台 | 產物 | 建置方式 |
+|---|---|---|
+| Windows | MSI 安裝檔 | `cd app && npx tauri build --bundles msi` |
+| Windows | 免安裝 zip | 先建 MSI，再 `powershell -File packaging/windows-portable.ps1`。zip 內含 `portable.txt` 與 `OpenModelData/{models,engines,outputs}`；設定中資料夾內的路徑存成相對路徑，WebView2 資料也放在 `OpenModelData/webview` |
+| Linux | AppImage、deb | `packaging/linux/build.sh appimage`：在 Ubuntu 22.04 容器內建置（glibc 2.35），Node 24.22.1 以 SHA-256 核對 |
+| Linux | Flatpak | `packaging/linux/build.sh flatpak`：GNOME 51 runtime，用 deb 重新包裝；使用者層級的 `org.flatpak.Builder`，不需 sudo |
+| macOS | DMG（拖到「應用程式」） | 在 Mac 上 `packaging/macos/build.sh`，universal（Apple Silicon + Intel），未簽章 |
+
+2026-11-02 已建置：Windows（本機）、Linux（moses-server，Docker + Flatpak）。macOS 尚未建置（需要 Mac）。CI 的 `bundle` 工作會在三平台產生上述全部格式。
+
 ## 下一步
 
 1. **實機試用桌面程式**：安裝引擎 → 下載模型 → 執行 → 對話 / Agent；畫圖與影片需要 sd.cpp 引擎與模型。
