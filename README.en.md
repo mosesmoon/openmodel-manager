@@ -28,7 +28,13 @@ An open-source, cross-platform (Windows / Linux / macOS) manager for local AI mo
   - Tool calls, image input, and visible reasoning.
 - **Agent**: reads and writes files and runs commands inside a workspace folder you choose, with a visible step list.
 - **AI image and video generation**: Z-Image, FLUX.2 klein, FLUX.1 schnell, Qwen-Image, Wan2.2 and more.
+- **OpenAI-compatible API**: other apps can use the model you start. You can set an API key (or leave it blank) and choose which network cards to open it on.
+- **Web management page**: other computers and phones can open the same UI in a browser, with password sign-in and a green/red on/off switch. You also choose which network cards it opens on.
+- **Layout**: the menu can sit on the left, right, top or bottom, and the half-circle button on its edge folds it away.
+- **Supply-chain security**: CI scans dependencies for vulnerabilities, produces SPDX and CycloneDX SBOMs, and signs build provenance for the installers.
 - **Languages**: Traditional Chinese (default) and English.
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
 ## Principles
 

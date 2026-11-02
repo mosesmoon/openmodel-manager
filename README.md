@@ -23,7 +23,13 @@
 - **對話**：可接本機模型或 AI 服務供應商，包括 Anthropic、OpenAI、Google AI Studio、xAI Grok、NVIDIA NIM 及任何 OpenAI 相容 API。支援工具呼叫、圖片輸入、顯示思考過程。
 - **Agent**：在指定的工作資料夾內讀寫檔案、執行指令，每一步都有清單可看。
 - **AI 生成圖片 / 影片**：Z-Image、FLUX.2 klein、FLUX.1 schnell、Qwen-Image、Wan2.2 等。
+- **OpenAI 相容 API**：啟動的模型可以給其他程式使用。可設定 API key（也可留空），並勾選要開放的網路卡。
+- **網頁管理介面**：其他電腦或手機可用瀏覽器開啟和桌面版相同的介面，有密碼登入和綠／紅啟用開關，也能選要開放的網路卡。
+- **自訂版面**：導覽選單可以放在左、右、上、下，邊緣的半圓按鈕可以收合選單。
+- **供應鏈安全**：CI 掃描相依套件漏洞，產生 SPDX 與 CycloneDX 格式的 SBOM，並為安裝檔簽署建置來源證明。
 - **介面語言**：繁體中文（預設）與英文。
+
+更新內容見 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 設計原則
 
