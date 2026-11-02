@@ -915,8 +915,20 @@ fn forward_server_events(app: &AppHandle, which: &'static str, srv: &ManagedServ
 }
 
 pub fn run() {
+    // Portable mode: keep the WebView2 profile (cache, local storage) beside
+    // the program too, not in %LOCALAPPDATA%.
+    #[cfg(windows)]
+    if let Some(d) = openmodel_core::config::portable_dir() {
+        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", d.join("webview"));
+    }
+    let settings = Settings::load();
+    if openmodel_core::config::portable_dir().is_some() {
+        // Portable: the folders exist (and settings.json is written) from the first start.
+        let _ = settings.ensure_dirs();
+        let _ = settings.save();
+    }
     let state = AppState {
-        settings: RwLock::new(Settings::load()),
+        settings: RwLock::new(settings),
         hw: RwLock::new(None),
         llm: ManagedServer::new(),
         sd: ManagedServer::new(),

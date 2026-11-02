@@ -3,7 +3,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Manual GPU override for machines where detection is wrong.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -101,14 +101,18 @@ pub fn data_dir() -> PathBuf {
     if let Ok(p) = std::env::var("OPENMODEL_HOME") {
         return PathBuf::from(p);
     }
-    if let Some(dir) = std::env::current_exe().ok().and_then(|e| e.parent().map(|p| p.to_path_buf())) {
-        if dir.join("portable.txt").exists() {
-            return dir.join("OpenModelData");
-        }
+    if let Some(d) = portable_dir() {
+        return d;
     }
     directories::ProjectDirs::from("org", "openmodel", "OpenModelManager")
         .map(|d| d.data_dir().to_path_buf())
         .unwrap_or_else(|| PathBuf::from(".openmodel"))
+}
+
+/// `OpenModelData/` next to the executable when a `portable.txt` sits there.
+pub fn portable_dir() -> Option<PathBuf> {
+    let dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    dir.join("portable.txt").exists().then(|| dir.join("OpenModelData"))
 }
 
 fn settings_path() -> PathBuf {
@@ -117,10 +121,8 @@ fn settings_path() -> PathBuf {
 
 impl Settings {
     pub fn load() -> Settings {
-        std::fs::read(settings_path())
-            .ok()
-            .and_then(|b| serde_json::from_slice(&b).ok())
-            .unwrap_or_default()
+        let s: Settings = std::fs::read(settings_path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        s.resolved_in(&data_dir())
     }
 
     pub fn save(&self) -> Result<()> {
@@ -128,7 +130,41 @@ impl Settings {
         if let Some(d) = p.parent() {
             std::fs::create_dir_all(d)?;
         }
-        std::fs::write(p, serde_json::to_vec_pretty(self)?)?;
+        std::fs::write(p, serde_json::to_vec_pretty(&self.relative_to(&data_dir()))?)?;
+        Ok(())
+    }
+
+    fn dirs_mut(&mut self) -> [&mut PathBuf; 3] {
+        [&mut self.models_dir, &mut self.engines_dir, &mut self.outputs_dir]
+    }
+
+    /// Folders inside `base` stored relative to it, so a portable folder
+    /// keeps working after it is moved to another drive or PC.
+    pub fn relative_to(&self, base: &Path) -> Settings {
+        let mut s = self.clone();
+        for d in s.dirs_mut() {
+            if let Ok(rel) = d.strip_prefix(base) {
+                *d = if rel.as_os_str().is_empty() { PathBuf::from(".") } else { rel.to_path_buf() };
+            }
+        }
+        s
+    }
+
+    /// Relative folders (as `relative_to` writes them) joined back onto `base`.
+    pub fn resolved_in(mut self, base: &Path) -> Settings {
+        for d in self.dirs_mut() {
+            if d.is_relative() {
+                *d = base.join(&*d);
+            }
+        }
+        self
+    }
+
+    /// Create the models / engines / outputs folders.
+    pub fn ensure_dirs(&self) -> Result<()> {
+        for d in [&self.models_dir, &self.engines_dir, &self.outputs_dir] {
+            std::fs::create_dir_all(d)?;
+        }
         Ok(())
     }
 
@@ -157,6 +193,21 @@ impl Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn folders_inside_the_data_dir_are_saved_relative() {
+        let base = std::env::temp_dir().join("OpenModelData");
+        let s = Settings { models_dir: base.join("models"), engines_dir: PathBuf::from("D:/elsewhere/engines"), outputs_dir: base.join("outputs"), ..Settings::default() };
+        let rel = s.relative_to(&base);
+        assert_eq!(rel.models_dir, PathBuf::from("models"));
+        assert_eq!(rel.engines_dir, PathBuf::from("D:/elsewhere/engines"));
+        // Moved to another place: the relative folders follow.
+        let moved = std::env::temp_dir().join("usb").join("OpenModelData");
+        let back = rel.resolved_in(&moved);
+        assert_eq!(back.models_dir, moved.join("models"));
+        assert_eq!(back.outputs_dir, moved.join("outputs"));
+        assert_eq!(back.engines_dir, PathBuf::from("D:/elsewhere/engines"));
+    }
 
     #[test]
     fn mirror_prefix() {
