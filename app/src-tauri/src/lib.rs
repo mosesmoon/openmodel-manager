@@ -220,6 +220,8 @@ struct CatalogEntry {
     description: String,
     fits: Vec<QuantFit>,
     recommended: Option<String>,
+    /// Strata's official pack for this model, when it has one.
+    strata: Option<&'static strata::OfficialPack>,
 }
 
 fn rank(t: Tier) -> u8 {
@@ -254,7 +256,7 @@ async fn catalog(state: State<'_, AppState>) -> Res<Vec<CatalogEntry>> {
                 .collect();
             // Best tier first, then the largest (highest quality) quant within it.
             let recommended = fits.iter().max_by_key(|f| (rank(f.tier), f.size_bytes)).map(|f| f.quant.clone());
-            CatalogEntry { description: m.description(&s.language).to_string(), model: m, fits, recommended }
+            CatalogEntry { description: m.description(&s.language).to_string(), strata: strata::official_pack(&m.id), model: m, fits, recommended }
         })
         .collect())
 }
@@ -324,9 +326,20 @@ async fn plan_preview(state: State<'_, AppState>, opts: RunOptions) -> Res<PlanP
 
 // ---------------------------------------------------------------- library / Hugging Face
 
+#[derive(Serialize)]
+struct LibraryEntry {
+    #[serde(flatten)]
+    model: LocalModel,
+    /// Belongs to a family Strata runs.
+    strata: bool,
+}
+
 #[tauri::command]
-fn library_list(state: State<AppState>) -> Vec<LocalModel> {
+fn library_list(state: State<AppState>) -> Vec<LibraryEntry> {
     library::list(&state.settings().models_dir, &data_dir())
+        .into_iter()
+        .map(|m| LibraryEntry { strata: strata::supports(&m.path.display().to_string()), model: m })
+        .collect()
 }
 
 #[tauri::command]

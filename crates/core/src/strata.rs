@@ -54,10 +54,39 @@ pub fn parse_manifest(text: &str, platform: &str) -> Option<ManifestEntry> {
     })
 }
 
-/// The model families Strata runs, judged from a file or folder name.
+/// Hugging Face packs Strata's docs list as supported (docs/MODELS.md).
+/// ISTA-DASLab and DeepSeek sets exist too but are not in our catalog.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq)]
+pub struct OfficialPack {
+    /// Normalised family name, as in `normalise`.
+    pub family: &'static str,
+    pub repo: &'static str,
+    pub quants: &'static [&'static str],
+}
+
+pub const OFFICIAL: &[OfficialPack] = &[
+    OfficialPack { family: "qwen3.8-flash-next", repo: "unsloth/Qwen3.8-Flash-Next-GGUF", quants: &["UD-IQ4_XS", "UD-Q4_K_XL", "UD-Q5_K_XL", "UD-Q6_K_XL", "Q8_0"] },
+    // Strata runs Qwen3.6 only from the edition that carries the MTP draft layer.
+    OfficialPack { family: "qwen3.6-35b-a3b", repo: "unsloth/Qwen3.6-35B-A3B-MTP-GGUF", quants: &["UD-Q4_K_XL", "UD-Q6_K_XL", "Q8_0"] },
+];
+
+fn normalise(name: &str) -> String {
+    name.to_lowercase().replace(['_', ' '], "-")
+}
+
+/// The official pack for a catalog model (by id, name or repo).
+pub fn official_pack(name: &str) -> Option<&'static OfficialPack> {
+    let n = normalise(name);
+    OFFICIAL.iter().find(|p| n.contains(p.family))
+}
+
+/// The model families Strata runs, judged from a file or folder path.
 pub fn supports(name: &str) -> bool {
-    let n = name.to_lowercase().replace(['_', ' '], "-");
-    ["qwen3.8-flash-next", "qwen3.6-35b-a3b", "deepseekv4.1-flash", "deepseek-v4.1-flash"].iter().any(|f| n.contains(f))
+    let n = normalise(name);
+    if n.contains("deepseekv4.1-flash") || n.contains("deepseek-v4.1-flash") || n.contains("qwen3.8-flash-next") {
+        return true;
+    }
+    n.contains("qwen3.6-35b-a3b") && n.contains("mtp")
 }
 
 fn root(s: &Settings) -> PathBuf {
@@ -239,9 +268,17 @@ mod tests {
     #[test]
     fn supported_families() {
         assert!(supports("Qwen3.8-Flash-Next-UD-Q4_K_XL-00001-of-00003.gguf"));
-        assert!(supports("Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"));
+        assert!(supports("/m/unsloth__Qwen3.6-35B-A3B-MTP-GGUF/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"));
+        assert!(!supports("/m/unsloth__Qwen3.6-35B-A3B-GGUF/Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"), "Qwen3.6 needs the MTP edition");
         assert!(supports("DeepSeekV4.1-Flash-1017-IST-DAS-2.00bpw"));
         assert!(!supports("gpt-oss-20b-Q4_K_M.gguf"));
+    }
+
+    #[test]
+    fn official_packs_by_catalog_id() {
+        assert_eq!(official_pack("qwen3.8-flash-next").unwrap().repo, "unsloth/Qwen3.8-Flash-Next-GGUF");
+        assert_eq!(official_pack("Qwen3.6 35B-A3B").unwrap().repo, "unsloth/Qwen3.6-35B-A3B-MTP-GGUF");
+        assert!(official_pack("qwen3.6-27b").is_none());
     }
 
     #[test]

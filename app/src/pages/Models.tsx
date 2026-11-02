@@ -45,12 +45,19 @@ function Recommended() {
         {list.map((m) => {
           const q = choice[m.id] ?? m.recommended ?? m.quants[0];
           const fit = m.fits.find((f) => f.quant === q);
+          const sp = m.strata;
+          const sameRepo = sp?.repo.toLowerCase() === m.repo.toLowerCase();
+          const spOk = (x: string) => !!sp && sameRepo && sp.quants.some((y) => y.toLowerCase() === x.toLowerCase());
+          const spQuant = sp ? (sp.quants.find((y) => y.toLowerCase() === q.toLowerCase()) ?? sp.quants[0]) : "";
           return (
             <div key={m.id} className="card stack">
               <div>
                 <div className="row spread">
                   <h3 style={{ margin: 0 }}>{m.name}</h3>
-                  {fit && <span className={"pill " + fit.tier}>{fit.tier_label}</span>}
+                  <span className="row" style={{ gap: 6 }}>
+                    {sp && <span className="pill strata" title={t("models.strata_tip")}>Strata</span>}
+                    {fit && <span className={"pill " + fit.tier}>{fit.tier_label}</span>}
+                  </span>
                 </div>
                 <div className="muted small">{m.org} · {m.release} · {m.params_b}B{m.active_b ? ` (${m.active_b}B active)` : ""}</div>
               </div>
@@ -60,13 +67,28 @@ function Recommended() {
                 <select value={q} onChange={(e) => setChoice({ ...choice, [m.id]: e.target.value })}>
                   {m.fits.map((f) => (
                     <option key={f.quant} value={f.quant}>
-                      {f.quant} · {gb(f.size_bytes)}{f.quant === m.recommended ? " ★" : ""}{f.installed ? " ✓" : ""}
+                      {f.quant} · {gb(f.size_bytes)}{f.quant === m.recommended ? " ★" : ""}{f.installed ? " ✓" : ""}{spOk(f.quant) ? " · Strata" : ""}
                     </option>
                   ))}
                 </select>
                 {fit && <span className="muted small">{t("models.est")} {fit.est_tps.toFixed(0)} tok/s · {t("models.ctx")} {fit.ctx / 1024}K</span>}
               </div>
               {fit && <SplitBar gpu={fit.gpu_bytes} ram={fit.ram_bytes} disk={fit.disk_bytes} />}
+              {sp && sameRepo && (
+                <div className="small muted">
+                  {spOk(q) ? t("models.strata_quant_ok") : <>{t("models.strata_quants")} {sp.quants.join(", ")}</>}
+                </div>
+              )}
+              {sp && !sameRepo && (
+                <div className="note small stack" style={{ gap: 6 }}>
+                  <div>{t("models.strata_other_repo")} <span className="mono">{sp.repo}</span> ({sp.quants.join(", ")})</div>
+                  <div>
+                    <button className="btn sm" onClick={() => api.hfDownload(sp.repo, spQuant, vision && m.vision).then((id) => track(id, `${m.name} MTP ${spQuant}`, () => load()), fail)}>
+                      {t("models.strata_download")} ({spQuant})
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="row">
                 {fit?.installed ? (
                   <span className="pill fast">{t("common.installed")}</span>
@@ -137,7 +159,10 @@ function Installed() {
                   </td>
                   <td>{m.quant ?? ""}</td>
                   <td>{gb(m.size_bytes)}</td>
-                  <td>{m.mmproj && <span className="pill">vision</span>} {m.external && <span className="pill">{t("models.external")}</span>}</td>
+                  <td>
+                    {m.strata && <span className="pill strata" title={t("models.strata_tip")}>Strata</span>}{" "}
+                    {m.mmproj && <span className="pill">vision</span>} {m.external && <span className="pill">{t("models.external")}</span>}
+                  </td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                     <button className="btn sm primary" onClick={() => go("run", m.path)}>{t("models.run")}</button>{" "}
                     <button className="btn sm" onClick={() => revealItemInDir(m.path)}>{t("common.open_folder")}</button>{" "}

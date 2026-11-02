@@ -44,7 +44,9 @@ export interface CatalogEntry {
   id: string; name: string; org: string; repo: string; release: string; tags: string[];
   params_b: number; active_b: number | null; ctx_max: number; vision: boolean; quants: string[];
   description: string; fits: QuantFit[]; recommended: string | null;
+  strata: StrataPack | null;
 }
+export interface StrataPack { family: string; repo: string; quants: string[] }
 
 export interface Plan {
   tier: Tier; tier_label: string; ctx: number; gpu_layers: number; n_cpu_moe: number;
@@ -57,7 +59,7 @@ export interface PlanPreview { plan: Plan; summary: ModelSummary; mmproj: string
 export type LlmEngine = "llama" | "strata";
 export interface RunOptions { path: string; ctx: number | null; custom_args: string | null; vision: boolean; engine?: LlmEngine }
 
-export interface LocalModel { name: string; path: string; files: string[]; size_bytes: number; quant: string | null; mmproj: string | null; external: boolean }
+export interface LocalModel { name: string; path: string; files: string[]; size_bytes: number; quant: string | null; mmproj: string | null; external: boolean; strata?: boolean }
 export interface HfModel { id: string; downloads: number; likes: number; lastModified: string | null; gated: unknown }
 export interface RepoFile { path: string; size: number }
 export interface RepoListing { quants: { quant: string; files: RepoFile[]; total_bytes: number }[]; mmproj: RepoFile[] }
