@@ -16,6 +16,9 @@ use tokio::io::AsyncBufReadExt;
 use tokio_util::sync::CancellationToken;
 
 const UV_REPO: &str = "astral-sh/uv";
+/// vLLM's official ROCm wheel index (x86_64, Python 3.12; the ROCm release
+/// it targets is in each wheel's local version, e.g. `+rocm100`).
+pub const VLLM_ROCM_INDEX: &str = "https://wheels.vllm.ai/rocm/";
 const PYTHON: &str = "3.12";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
@@ -60,10 +63,23 @@ impl PyKind {
     }
 }
 
+/// GPU build of an engine. Only vLLM has more than one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Variant {
+    /// PyPI's default build (CUDA for vLLM, Metal for MLX).
+    #[default]
+    Default,
+    /// vLLM for AMD GPUs, from vLLM's ROCm wheel index.
+    Rocm,
+}
+
 /// What `pyengine.json` records for an installed engine.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PyInstall {
     pub kind: PyKind,
+    #[serde(default)]
+    pub variant: Variant,
     pub version: String,
     /// The virtual environment's Python.
     pub python: PathBuf,
@@ -218,9 +234,21 @@ pub fn parse_pip_show(out: &str) -> Option<String> {
     out.lines().find_map(|l| l.strip_prefix("Version:").map(|v| v.trim().to_string()))
 }
 
+/// `uv pip install` arguments for the latest release of `kind`/`variant`.
+pub fn install_args(kind: PyKind, variant: Variant, python: &Path) -> Vec<String> {
+    let mut a: Vec<String> = vec!["pip".into(), "install".into(), "--upgrade".into(), "--python".into(), python.display().to_string()];
+    if kind == PyKind::Vllm && variant == Variant::Rocm {
+        // uv prefers an extra index over PyPI, so vLLM and its ROCm torch come from here.
+        a.extend(["--extra-index-url".into(), VLLM_ROCM_INDEX.into()]);
+    }
+    a.push(kind.package().into());
+    a
+}
+
 /// Install the latest release of the engine, or upgrade an existing one in
 /// place. Refuses on systems the engine does not support.
-pub async fn install(s: &Settings, kind: PyKind, cancel: &CancellationToken, job_id: &str, progress: &ProgressFn) -> Result<PyInstall> {
+pub async fn install(s: &Settings, kind: PyKind, variant: Variant, cancel: &CancellationToken, job_id: &str, progress: &ProgressFn) -> Result<PyInstall> {
+    let variant = if kind == PyKind::Vllm { variant } else { Variant::Default };
     if !kind.supported_here() {
         bail!("{} does not run on this system", kind.name());
     }
@@ -233,22 +261,41 @@ pub async fn install(s: &Settings, kind: PyKind, cancel: &CancellationToken, job
         c.args(["venv", "--python", PYTHON, "--seed"]).arg(&venv);
         run_logged(c, cancel, job_id, progress, "uv venv").await?;
     }
+    if installed(s, kind).is_some_and(|i| i.variant != variant) {
+        // Switching CUDA <-> ROCm: start from a clean environment.
+        std::fs::remove_dir_all(&venv)?;
+        let mut c = uv_cmd(s, &uv);
+        c.args(["venv", "--python", PYTHON, "--seed"]).arg(&venv);
+        run_logged(c, cancel, job_id, progress, "uv venv").await?;
+    }
     let mut c = uv_cmd(s, &uv);
-    c.args(["pip", "install", "--upgrade", "--python"]).arg(&python).arg(kind.package());
+    c.args(install_args(kind, variant, &python));
     run_logged(c, cancel, job_id, progress, kind.package()).await?;
     let mut c = uv_cmd(s, &uv);
     c.args(["pip", "show", "--python"]).arg(&python).arg(kind.package());
     let shown = run_logged(c, cancel, job_id, progress, "uv pip show").await?;
     let version = parse_pip_show(&shown).unwrap_or_else(|| "unknown".into());
-    let i = PyInstall { kind, version, python, dir: dir.clone() };
+    let i = PyInstall { kind, variant, version, python, dir: dir.clone() };
     std::fs::write(dir.join("pyengine.json"), serde_json::to_vec_pretty(&i)?)?;
     Ok(i)
 }
 
-/// Newest version on PyPI.
-pub async fn latest_version(kind: PyKind) -> Result<String> {
+/// Newest release: from vLLM's ROCm index for the ROCm build (it runs ahead
+/// of PyPI), else from PyPI.
+pub async fn latest_version(kind: PyKind, variant: Variant) -> Result<String> {
+    if kind == PyKind::Vllm && variant == Variant::Rocm {
+        let page = crate::http_client().get(format!("{VLLM_ROCM_INDEX}vllm/")).send().await?.error_for_status()?.text().await?;
+        return newest_rocm_release(&page).context("no vLLM release on the ROCm index");
+    }
     let v: serde_json::Value = crate::http_client().get(format!("https://pypi.org/pypi/{}/json", kind.package())).send().await?.error_for_status()?.json().await?;
     v.pointer("/info/version").and_then(|x| x.as_str()).map(String::from).context("PyPI answer has no version")
+}
+
+/// Newest stable release named in a wheel index page (`vllm-0.33.0+rocm100-...whl`);
+/// release candidates and dev builds are skipped.
+pub fn newest_rocm_release(page: &str) -> Option<String> {
+    let re = regex::Regex::new(r"vllm-(\d+\.\d+\.\d+)(?:\+|%2B)(rocm\d+)-").unwrap();
+    re.captures_iter(page).map(|c| format!("{}+{}", &c[1], &c[2])).max_by(|a, b| if is_newer(a, b) { std::cmp::Ordering::Greater } else if is_newer(b, a) { std::cmp::Ordering::Less } else { std::cmp::Ordering::Equal })
 }
 
 /// True when `latest` is a newer release than `current` (numeric compare of
@@ -310,6 +357,21 @@ mod tests {
         assert!(!is_newer("0.32.0", "0.32.0"));
         assert!(!is_newer("0.31.5", "0.32.0"));
         assert_eq!(parse_pip_show("Name: vllm\nVersion: 0.32.0\nLocation: x"), Some("0.32.0".into()));
+        let page = r#"<a href="vllm-0.32.1+rocm100-cp312-cp312-manylinux_2_34_x86_64.whl">x</a>
+<a href="vllm-0.33.0%2Brocm100-cp312-cp312-manylinux_2_34_x86_64.whl">y</a>
+<a href="vllm-0.33.0rc3.dev3+g4ba787ec9.rocm100-cp312-cp312-manylinux_2_34_x86_64.whl">z</a>"#;
+        assert_eq!(newest_rocm_release(page).as_deref(), Some("0.33.0+rocm100"));
+        assert!(!is_newer("0.33.0+rocm100", "0.33.0+rocm100"));
+    }
+
+    #[test]
+    fn rocm_uses_vllm_wheel_index() {
+        let py = Path::new("/v/bin/python");
+        let rocm = install_args(PyKind::Vllm, Variant::Rocm, py);
+        assert!(rocm.windows(2).any(|w| w == ["--extra-index-url", VLLM_ROCM_INDEX]));
+        assert_eq!(rocm.last().unwrap(), "vllm");
+        assert!(!install_args(PyKind::Vllm, Variant::Default, py).contains(&"--extra-index-url".to_string()));
+        assert!(!install_args(PyKind::Mlx, Variant::Rocm, py).contains(&"--extra-index-url".to_string()));
     }
 
     #[test]
@@ -338,7 +400,9 @@ mod tests {
         c.args(["venv", "--python", PYTHON, "--seed"]).arg(&venv);
         run_logged(c, &CancellationToken::new(), "t", &crate::noop_progress(), "uv venv").await.unwrap();
         assert!(venv_python(&venv).exists());
-        let v = latest_version(PyKind::Vllm).await.unwrap();
+        let v = latest_version(PyKind::Vllm, Variant::Default).await.unwrap();
         assert!(v.split('.').count() >= 2, "{v}");
+        let r = latest_version(PyKind::Vllm, Variant::Rocm).await.unwrap();
+        assert!(r.contains("+rocm"), "{r}");
     }
 }

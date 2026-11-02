@@ -62,8 +62,9 @@ export interface ModelSummary { arch: string; name: string | null; quant: string
 export interface PlanPreview { plan: Plan; summary: ModelSummary; mmproj: string | null; saved_custom_args: string; strata_supported: boolean }
 export type LlmEngine = "llama" | "strata" | "vllm" | "mlx";
 export type PyKind = "vllm" | "mlx";
-export interface PyInstall { kind: PyKind; version: string; python: string; dir: string }
-export interface PyEngineInfo { kind: PyKind; name: string; package: string; unsupported: "macos-arm64" | "linux" | null; installed: PyInstall | null }
+export type PyVariant = "default" | "rocm";
+export interface PyInstall { kind: PyKind; variant: PyVariant; version: string; python: string; dir: string }
+export interface PyEngineInfo { kind: PyKind; name: string; package: string; unsupported: "macos-arm64" | "linux" | null; installed: PyInstall | null; suggested: PyVariant }
 export interface RunOptions { path: string; ctx: number | null; custom_args: string | null; vision: boolean; engine?: LlmEngine }
 
 export interface LocalModel { name: string; path: string; files: string[]; size_bytes: number; quant: string | null; mmproj: string | null; external: boolean; strata?: boolean }
@@ -131,8 +132,8 @@ export const api = {
   serverStop: (which: "llm" | "sd") => invoke<void>("server_stop", { which }),
   llmStart: (opts: RunOptions) => invoke<Plan | null>("llm_start", { opts }),
   pyEngines: () => invoke<PyEngineInfo[]>("py_engines"),
-  pyEngineInstall: (kind: PyKind) => invoke<string>("py_engine_install", { kind }),
-  pyEngineLatest: (kind: PyKind) => invoke<string>("py_engine_latest", { kind }),
+  pyEngineInstall: (kind: PyKind, variant: PyVariant | null = null) => invoke<string>("py_engine_install", { kind, variant }),
+  pyEngineLatest: (kind: PyKind, variant: PyVariant | null = null) => invoke<string>("py_engine_latest", { kind, variant }),
   pyEngineRemove: (kind: PyKind) => invoke<void>("py_engine_remove", { kind }),
   pyEngineStart: (kind: PyKind, model: string, ctx: number | null) => invoke<number>("py_engine_start", { kind, model, ctx }),
   openFolder: (path: string) => invoke<void>("open_folder", { path }),

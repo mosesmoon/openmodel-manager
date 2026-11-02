@@ -19,7 +19,7 @@ use openmodel_core::{
     library::{self, LocalModel},
     llm::{self, ChatEvent, Endpoint},
     server::{find_free_port, ManagedServer, ServerStatus},
-    pyengine::{self, PyInstall, PyKind},
+    pyengine::{self, PyInstall, PyKind, Variant},
     strata::{self, StrataInstall},
     tiering::{self, Machine, ModelShape, Plan, PlanOptions, Tier},
     tools::{ApprovalGate, ChatToolbox, Decision, CHAT_MAX_ROUNDS},
@@ -421,39 +421,66 @@ struct PyEngineInfo {
     /// Why it cannot run here ("macos-arm64" / "linux"), None when it can.
     unsupported: Option<&'static str>,
     installed: Option<PyInstall>,
+    /// The build an install would pick now.
+    suggested: Variant,
 }
 
 #[tauri::command]
-fn py_engines(state: State<AppState>) -> Vec<PyEngineInfo> {
+async fn py_engines(state: State<'_, AppState>) -> Res<Vec<PyEngineInfo>> {
     let s = state.settings();
-    PyKind::ALL
-        .iter()
-        .map(|k| PyEngineInfo {
-            kind: *k,
+    let mut out = vec![];
+    for k in PyKind::ALL {
+        out.push(PyEngineInfo {
+            kind: k,
             name: k.name(),
             package: k.package(),
             unsupported: k.unsupported_reason(std::env::consts::OS, std::env::consts::ARCH),
-            installed: pyengine::installed(&s, *k),
-        })
-        .collect()
+            installed: pyengine::installed(&s, k),
+            suggested: py_variant(&state, k, None).await,
+        });
+    }
+    Ok(out)
+}
+
+/// The GPU build to install: the user's choice, else the installed one,
+/// else ROCm when the preferred backend is ROCm.
+async fn py_variant(state: &AppState, kind: PyKind, requested: Option<Variant>) -> Variant {
+    if let Some(v) = requested {
+        return v;
+    }
+    let s = state.settings();
+    if let Some(i) = pyengine::installed(&s, kind) {
+        return i.variant;
+    }
+    let preferred = match s.backend {
+        Some(b) => Some(b),
+        None => state.hardware(false).await.recommended_backends.first().copied(),
+    };
+    if kind == PyKind::Vllm && preferred == Some(Backend::Rocm) {
+        Variant::Rocm
+    } else {
+        Variant::Default
+    }
 }
 
 /// Install the latest release, or upgrade the installed one.
 #[tauri::command]
-fn py_engine_install(app: AppHandle, state: State<AppState>, kind: PyKind) -> Res<String> {
+async fn py_engine_install(app: AppHandle, state: State<'_, AppState>, kind: PyKind, variant: Option<Variant>) -> Res<String> {
     if !kind.supported_here() {
         return Err(format!("{} does not run on this system", kind.name()));
     }
+    let variant = py_variant(&state, kind, variant).await;
     let s = state.settings();
     Ok(spawn_job(&app, &state, "engine", move |cancel, progress, jid| async move {
-        let i = pyengine::install(&s, kind, &cancel, &jid, &progress).await?;
+        let i = pyengine::install(&s, kind, variant, &cancel, &jid, &progress).await?;
         Ok(vec![i.version])
     }))
 }
 
 #[tauri::command]
-async fn py_engine_latest(kind: PyKind) -> Res<String> {
-    pyengine::latest_version(kind).await.map_err(errs)
+async fn py_engine_latest(state: State<'_, AppState>, kind: PyKind, variant: Option<Variant>) -> Res<String> {
+    let variant = py_variant(&state, kind, variant).await;
+    pyengine::latest_version(kind, variant).await.map_err(errs)
 }
 
 #[tauri::command]

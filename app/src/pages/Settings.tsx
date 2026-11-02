@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { api, Backend, EngineKind, Engines, NamedEndpoint, PyEngineInfo, Settings } from "../api";
+import { api, Backend, EngineKind, Engines, NamedEndpoint, PyEngineInfo, PyVariant, Settings } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 import { findProvider, PROVIDERS } from "../providers";
@@ -181,9 +181,10 @@ function PyEngines() {
   const { track, fail } = useApp();
   const [list, setList] = useState<PyEngineInfo[]>([]);
   const [latest, setLatest] = useState<Record<string, string>>({});
+  const [variant, setVariant] = useState<Record<string, PyVariant>>({});
   const load = () => api.pyEngines().then(setList, fail);
   useEffect(() => { load(); }, []);
-  const check = (e: PyEngineInfo) => api.pyEngineLatest(e.kind).then((v) => setLatest((l) => ({ ...l, [e.kind]: v })), fail);
+  const check = (e: PyEngineInfo, v: PyVariant) => api.pyEngineLatest(e.kind, v).then((x) => setLatest((l) => ({ ...l, [e.kind]: x })), fail);
   const newer = (a: string, b: string) => {
     const p = (v: string) => v.split(/[.+-]/).map((x) => parseInt(x, 10) || 0);
     const [x, y] = [p(a), p(b)];
@@ -195,26 +196,40 @@ function PyEngines() {
       {list.map((e) => {
         const off = !!e.unsupported;
         const lv = latest[e.kind];
+        const v = variant[e.kind] ?? e.installed?.variant ?? e.suggested;
+        const vName = (x: PyVariant) => (x === "rocm" ? "AMD ROCm" : "NVIDIA CUDA");
         return (
           <div key={e.kind} className={"stack" + (off ? " disabled" : "")} style={{ gap: 6 }} title={off ? t(e.unsupported === "linux" ? "engine.unsupported_linux" : "engine.unsupported_mac") : undefined}>
             <div className="row">
               <b className="grow">{e.name}</b>
               {off && <span className="pill">{t(e.unsupported === "linux" ? "engine.unsupported_linux" : "engine.unsupported_mac")}</span>}
-              {!e.installed && <button className="btn sm primary" disabled={off} onClick={() => api.pyEngineInstall(e.kind).then((id) => track(id, e.name, () => load()), fail)}>{t("settings.install")}</button>}
-              {e.installed && <button className="btn sm" disabled={off} onClick={() => check(e)}>{t("engine.check_update")}</button>}
+              {e.kind === "vllm" && (
+                <label className="row small">{t("engine.gpu_build")}
+                  <select value={v} disabled={off} onChange={(x) => { setVariant({ ...variant, [e.kind]: x.target.value as PyVariant }); setLatest((l) => { const n = { ...l }; delete n[e.kind]; return n; }); }}>
+                    {(["default", "rocm"] as PyVariant[]).map((x) => <option key={x} value={x}>{vName(x)}</option>)}
+                  </select>
+                </label>
+              )}
+              {!e.installed && <button className="btn sm primary" disabled={off} onClick={() => api.pyEngineInstall(e.kind, v).then((id) => track(id, e.kind === "vllm" ? `${e.name} (${vName(v)})` : e.name, () => load()), fail)}>{t("settings.install")}</button>}
+              {e.installed && e.kind === "vllm" && v !== e.installed.variant && (
+                <button className="btn sm primary" disabled={off} onClick={() => api.pyEngineInstall(e.kind, v).then((id) => track(id, `${e.name} (${vName(v)})`, () => load()), fail)}>{t("settings.install")} {vName(v)}</button>
+              )}
+              {e.installed && <button className="btn sm" disabled={off} onClick={() => check(e, e.installed!.variant)}>{t("engine.check_update")}</button>}
               {e.installed && lv && newer(lv, e.installed.version) && (
-                <button className="btn sm primary" disabled={off} onClick={() => api.pyEngineInstall(e.kind).then((id) => track(id, `${e.name} ${lv}`, () => { load(); }), fail)}>{t("engine.update")} → {lv}</button>
+                <button className="btn sm primary" disabled={off} onClick={() => api.pyEngineInstall(e.kind, e.installed!.variant).then((id) => track(id, `${e.name} ${lv}`, () => { load(); }), fail)}>{t("engine.update")} → {lv}</button>
               )}
             </div>
             <div className="muted small">{t(e.kind === "vllm" ? "engine.vllm_desc" : "engine.mlx_desc")} {t("engine.py_install_note")}</div>
+            {e.kind === "vllm" && v === "rocm" && <div className="note small">{t("engine.rocm_note")}</div>}
             {!e.installed && !off && <div className="muted small">{t("common.none")}</div>}
             {!e.installed && lv === undefined && (
-              <div className="row small"><button className="btn sm" onClick={() => check(e)}>{t("engine.check_update")}</button></div>
+              <div className="row small"><button className="btn sm" onClick={() => check(e, v)}>{t("engine.check_update")}</button></div>
             )}
             {!e.installed && lv && <div className="muted small">{t("engine.latest")}: {e.package} {lv}</div>}
             {e.installed && (
               <div className="row small">
                 <span className="pill">{e.package}</span>
+                {e.kind === "vllm" && <span className="pill">{vName(e.installed.variant)}</span>}
                 <span>{e.installed.version}</span>
                 {lv && !newer(lv, e.installed.version) && <span className="muted">· {t("engine.up_to_date")}</span>}
                 {lv && newer(lv, e.installed.version) && <span className="muted">· {t("engine.new_version")} {lv}</span>}
