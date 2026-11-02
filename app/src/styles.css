@@ -89,6 +89,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .side { background: var(--panel); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 14px 10px; gap: 2px; }
 .brand { font-weight: 700; font-size: 15px; padding: 4px 10px 14px; display: flex; align-items: center; gap: 8px; }
+.navlang { margin: 0 4px 10px; padding: 4px 6px; font-size: 12px; }
+.pos-top .navlang, .pos-bottom .navlang { margin: 0 8px 0 0; }
 .brand img { width: 22px; height: 22px; }
 .nav { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; color: var(--muted); }
 .nav:hover { background: var(--panel-2); color: var(--text); }

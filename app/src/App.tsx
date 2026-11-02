@@ -158,6 +158,15 @@ function Shell({ settings, setSettings }: { settings: Settings; setSettings: (s:
         <div className="navwrap">
           {!nav.collapsed && (
             <nav className="side">
+              <select
+                className="navlang"
+                aria-label="語言 / Language"
+                value={settings.language}
+                onChange={(e) => ctx.saveSettings({ ...settings, language: e.target.value }).catch(fail)}
+              >
+                <option value="zh-TW">繁體中文</option>
+                <option value="en">English</option>
+              </select>
               <div className="brand"><img src="/icon.svg" alt="" />OpenModel</div>
               {PAGES.map((p) => (
                 <button key={p} className={"nav" + (p === page ? " on" : "")} onClick={() => ctx.go(p)}>

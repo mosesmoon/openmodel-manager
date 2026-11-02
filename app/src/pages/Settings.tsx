@@ -20,7 +20,7 @@ export default function SettingsPage() {
     setS({ ...s, [k]: v });
     setSaved(false);
   };
-  const save = () => saveSettings(s).then(() => setSaved(true), fail);
+  const save = () => saveSettings({ ...s, language: settings.language }).then(() => setSaved(true), fail);
   const pickDir = async (k: "models_dir" | "engines_dir" | "outputs_dir") => {
     const p = await pickPath({ directory: true, defaultPath: s[k] }, t("common.enter_path"));
     if (p) set(k, p);
@@ -38,13 +38,6 @@ export default function SettingsPage() {
 
       <div className="card stack">
         <h2>{t("settings.general")}</h2>
-        <label className="field" style={{ maxWidth: 240 }}>
-          <span>{t("settings.language")}</span>
-          <select value={s.language} onChange={(e) => set("language", e.target.value)}>
-            <option value="zh-TW">繁體中文</option>
-            <option value="en">English</option>
-          </select>
-        </label>
         <label className="field" style={{ maxWidth: 240 }}>
           <span>{t("settings.nav_pos")}</span>
           <select value={nav.pos} onChange={(e) => setNav({ ...nav, pos: e.target.value as NavPos })}>

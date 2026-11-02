@@ -21,6 +21,7 @@ export interface Settings {
   ram_reserve_bytes: number;
   vram_reserve_bytes: number;
   language: string;
+  installer_language: string | null;
   server_port: number;
   image_port: number;
   lan_access: boolean;

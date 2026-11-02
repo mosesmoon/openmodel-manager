@@ -71,7 +71,7 @@ openmodel serve <models_dir>/unsloth__gpt-oss-20b-GGUF/gpt-oss-20b-Q4_K_M.gguf -
 
 | 平台 | 產物 | 建置方式 |
 |---|---|---|
-| Windows | MSI 安裝檔 | `cd app && npx tauri build --bundles msi` |
+| Windows | MSI 安裝檔（zh-TW、en-US 各一個） | `cd app && npx tauri build --bundles msi`。`packaging/windows/language.wxs` 把安裝語言寫進程式旁的 `install.ini`，程式第一次開啟（或換語言重裝後）用同一種語言 |
 | Windows | 免安裝 zip | 先建 MSI，再 `powershell -File packaging/windows-portable.ps1`。zip 內含 `portable.txt` 與 `OpenModelData/{models,engines,outputs}`；設定中資料夾內的路徑存成相對路徑，WebView2 資料也放在 `OpenModelData/webview` |
 | Linux | AppImage、deb | `packaging/linux/build.sh appimage`：在 Ubuntu 22.04 容器內建置（glibc 2.35），Node 24.22.1 以 SHA-256 核對 |
 | Linux | Flatpak | `packaging/linux/build.sh flatpak`：GNOME 51 runtime，用 deb 重新包裝；使用者層級的 `org.flatpak.Builder`，不需 sudo |

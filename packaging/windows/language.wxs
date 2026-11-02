@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Records the installer's language (ProductLanguage, a Windows LCID such as
+     1028 for zh-TW or 1033 for en-US) in install.ini next to the program, so
+     the app opens in the language of the MSI that was downloaded. -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="InstallLanguage" Guid="*">
+        <RegistryValue Root="HKCU" Key="Software\openmodel\OpenModel-Manager" Name="InstallLanguage" Type="string" Value="[ProductLanguage]" KeyPath="yes" />
+        <IniFile Id="InstallLanguageIni" Action="addLine" Directory="INSTALLDIR" Name="install.ini" Section="install" Key="language" Value="[ProductLanguage]" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

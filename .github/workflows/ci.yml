@@ -61,7 +61,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: npm ci
         working-directory: app
-      # Windows: MSI installer + portable zip
+      # Windows: MSI installers (zh-TW and en-US) + portable zip
       - if: runner.os == 'Windows'
         run: npx tauri build --bundles msi
         working-directory: app

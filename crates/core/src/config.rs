@@ -37,6 +37,10 @@ pub struct Settings {
     pub vram_reserve_bytes: u64,
     /// UI language: "zh-TW" or "en".
     pub language: String,
+    /// Language of the MSI that installed this copy (Windows LCID), once it
+    /// has been applied to `language`; a reinstall in another language
+    /// switches the UI again.
+    pub installer_language: Option<String>,
     /// Port used by llama-server (moves up if busy).
     pub server_port: u16,
     /// Port used by sd-server (moves up if busy).
@@ -93,7 +97,8 @@ impl Default for Settings {
             github_mirror_prefix: String::new(),
             ram_reserve_bytes: 4 * GIB,
             vram_reserve_bytes: GIB / 2,
-            language: "zh-TW".into(),
+            language: first_run_language().into(),
+            installer_language: None,
             server_port: 8080,
             image_port: 7860,
             lan_access: false,
@@ -172,6 +177,42 @@ pub fn portable_dir() -> Option<PathBuf> {
     dir.join("portable.txt").exists().then(|| dir.join("OpenModelData"))
 }
 
+/// UI language before the user picks one: English for the portable build,
+/// otherwise Traditional Chinese (an MSI overrides both, see `load`).
+fn first_run_language() -> &'static str {
+    if portable_dir().is_some() { "en" } else { "zh-TW" }
+}
+
+/// LCID the MSI wrote to `install.ini` next to the executable
+/// (packaging/windows/language.wxs), e.g. "1028" for zh-TW.
+fn installer_language() -> Option<String> {
+    let ini = std::env::current_exe().ok()?.parent()?.join("install.ini");
+    parse_installer_language(&std::fs::read(ini).ok()?)
+}
+
+fn parse_installer_language(raw: &[u8]) -> Option<String> {
+    // Windows writes INI files as UTF-16 when they start with a BOM.
+    let text = if raw.starts_with(&[0xFF, 0xFE]) {
+        String::from_utf16_lossy(&raw[2..].chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect::<Vec<_>>())
+    } else {
+        String::from_utf8_lossy(raw).into_owned()
+    };
+    text.lines()
+        .filter_map(|l| l.split_once('='))
+        .find(|(k, _)| k.trim().eq_ignore_ascii_case("language"))
+        .map(|(_, v)| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+}
+
+/// UI language for a Windows LCID: Chinese (Taiwan, Hong Kong, Macao) gets
+/// Traditional Chinese, everything else English.
+fn language_for_lcid(lcid: &str) -> &'static str {
+    match lcid {
+        "1028" | "3076" | "5124" => "zh-TW",
+        _ => "en",
+    }
+}
+
 fn settings_path() -> PathBuf {
     data_dir().join("settings.json")
 }
@@ -183,7 +224,13 @@ impl Settings {
     }
 
     pub fn load() -> Settings {
-        let s: Settings = std::fs::read(settings_path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        let mut s: Settings = std::fs::read(settings_path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+        if let Some(lcid) = installer_language() {
+            if s.installer_language.as_deref() != Some(lcid.as_str()) {
+                s.language = language_for_lcid(&lcid).into();
+                s.installer_language = Some(lcid);
+            }
+        }
         s.resolved_in(&data_dir())
     }
 
@@ -258,6 +305,21 @@ impl Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn installer_language_from_ini() {
+        assert_eq!(parse_installer_language(b"[install]
+language=1028
+").as_deref(), Some("1028"));
+        let utf16: Vec<u8> = [0xFF, 0xFE].into_iter().chain("[install]
+Language = 1033
+".encode_utf16().flat_map(u16::to_le_bytes)).collect();
+        assert_eq!(parse_installer_language(&utf16).as_deref(), Some("1033"));
+        assert_eq!(parse_installer_language(b"[install]
+"), None);
+        assert_eq!(language_for_lcid("1028"), "zh-TW");
+        assert_eq!(language_for_lcid("1033"), "en");
+    }
 
     #[test]
     fn folders_inside_the_data_dir_are_saved_relative() {

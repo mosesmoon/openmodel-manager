@@ -27,7 +27,7 @@
 - **網頁管理介面**：其他電腦或手機可用瀏覽器開啟和桌面版相同的介面，有密碼登入和綠／紅啟用開關，也能選要開放的網路卡。
 - **自訂版面**：導覽選單可以放在左、右、上、下，邊緣的半圓按鈕可以收合選單。
 - **供應鏈安全**：CI 掃描相依套件漏洞，產生 SPDX 與 CycloneDX 格式的 SBOM，並為安裝檔簽署建置來源證明。
-- **介面語言**：繁體中文（預設）與英文。
+- **介面語言**：繁體中文與英文，從導覽選單最上方切換。中文版 MSI 第一次開啟是中文，英文版 MSI 和免安裝版是英文。
 
 更新內容見 [CHANGELOG.md](CHANGELOG.md)。
 
@@ -44,8 +44,9 @@
 
 | 平台 | 檔案 | 說明 |
 |---|---|---|
-| Windows | `.msi` | 安裝版 |
-| Windows | `*_portable.zip` | 免安裝版：解壓即可用，設定、模型、引擎、輸出都放在旁邊的 `OpenModelData/` |
+| Windows | `*_zh-TW.msi` | 安裝版（繁體中文：安裝畫面與程式都是中文） |
+| Windows | `*_en-US.msi` | 安裝版（英文：安裝畫面與程式都是英文） |
+| Windows | `*_portable.zip` | 免安裝版（預設英文）：解壓即可用，設定、模型、引擎、輸出都放在旁邊的 `OpenModelData/` |
 | Linux | `.AppImage` | 需要 glibc 2.35 以上（Ubuntu 22.04+） |
 | Linux | `.flatpak` | `flatpak install --user OpenModel-Manager.flatpak` |
 | Linux | `.deb` | Debian / Ubuntu |

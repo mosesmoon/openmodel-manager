@@ -32,7 +32,7 @@ An open-source, cross-platform (Windows / Linux / macOS) manager for local AI mo
 - **Web management page**: other computers and phones can open the same UI in a browser, with password sign-in and a green/red on/off switch. You also choose which network cards it opens on.
 - **Layout**: the menu can sit on the left, right, top or bottom, and the half-circle button on its edge folds it away.
 - **Supply-chain security**: CI scans dependencies for vulnerabilities, produces SPDX and CycloneDX SBOMs, and signs build provenance for the installers.
-- **Languages**: Traditional Chinese (default) and English.
+- **Languages**: Traditional Chinese and English, switched from the top of the menu. The zh-TW MSI opens in Chinese; the en-US MSI and the portable build open in English.
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
 
@@ -49,8 +49,9 @@ Get builds from [Releases](../../releases).
 
 | Platform | File | Notes |
 |---|---|---|
-| Windows | `.msi` | Installer |
-| Windows | `*_portable.zip` | Portable: unzip and run. Settings, models, engines and outputs live in `OpenModelData/` beside the program |
+| Windows | `*_en-US.msi` | Installer, English (installer and app) |
+| Windows | `*_zh-TW.msi` | Installer, Traditional Chinese (installer and app) |
+| Windows | `*_portable.zip` | Portable (English by default): unzip and run. Settings, models, engines and outputs live in `OpenModelData/` beside the program |
 | Linux | `.AppImage` | Needs glibc 2.35 or newer (Ubuntu 22.04+) |
 | Linux | `.flatpak` | `flatpak install --user OpenModel-Manager.flatpak` |
 | Linux | `.deb` | Debian / Ubuntu |

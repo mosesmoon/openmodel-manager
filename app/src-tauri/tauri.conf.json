@@ -36,6 +36,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "windows": {
+      "wix": {
+        "language": ["zh-TW", "en-US"],
+        "fragmentPaths": ["../../packaging/windows/language.wxs"],
+        "componentRefs": ["InstallLanguage"]
+      }
+    },
     "macOS": {
       "minimumSystemVersion": "11.0",
       "dmg": {
