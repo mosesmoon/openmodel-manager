@@ -22,6 +22,7 @@
 | `agent` | 工作資料夾沙箱（解析 `..` 與 symlink 後判斷）、11 個工具的 schema、資料夾外讀寫與 `run_command` / `delete_path` 一律詢問 | 5 |
 | `library` | 掃描本機模型（分卷只列一次、自動配對 mmproj）、登記外部模型（不複製、移除時不刪檔） | 1 |
 | `net` | 偵測有連線的 IPv4 網卡（排除 loopback 與 169.254）；伺服器一律只聽 127.0.0.1，勾選的網卡由 TCP 轉接到同一個 port。設定的 API key 經環境變數交給 llama.cpp（`LLAMA_API_KEY`）、vLLM（`VLLM_API_KEY`）、Strata（`--api-key-env`）；MLX 無驗證。已實測 llama-server 的 key（無 key／錯 key 401、正確 200）與經 LAN IP 轉接連線 | 2 |
+| `jit`（app） | OpenAI API 閘道：一律佔用設定的連接埠（127.0.0.1 與勾選的網卡），模型伺服器改用下一個空的連接埠且只聽 127.0.0.1。回應 `GET /v1`、`/v1/models`、`/v1/models/{id}`、`/props`，其他 `/v1/*` 轉給模型（串流照轉）；檢查 API key。JIT 開啟時列出全部已下載模型並在呼叫時掛載，GPU 剩餘 VRAM 放得下（`nvidia-smi`）就並存，否則先停掉已載入的模型。已實測：JIT 關／開、未知模型、按需載入 Gemma 4 26B（約 12 秒）、串流、`/props`、API key 401／200 | 2 |
 | `llm` | OpenAI 相容串流（SSE，含 `reasoning_content`、分段 tool call、usage / tok/s）；工具迴圈（拒絕的工具以結果回報給模型、可取消）；`/models` 列表；本機與遠端 endpoint 共用 | 3 |
 | `anthropic` | Anthropic Messages API（raw HTTP，`anthropic-version: 2026-10-21`）：把 OpenAI 形狀的對話轉成 Messages 格式（system、圖片、`tool_use`／`tool_result` 合併）、解析 SSE（text／thinking／signature／`input_json_delta`／usage／錯誤）；每輪的原始內容區塊存在訊息的 `_anthropic` 欄位、下一輪原樣送回；新模型開 adaptive thinking（summarized）與 `fallbacks: "default"`。設定頁「AI 服務供應商」：Anthropic、OpenAI、Google AI Studio、xAI、NVIDIA NIM、自訂 OpenAI 相容。訂閱登入（ChatGPT／Codex、Claude OAuth）不做：目前做法都要冒用官方 CLI 身分 | 4 |
 

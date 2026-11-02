@@ -18,7 +18,7 @@ use openmodel_core::{
     hf::{HfClient, HfModel, RepoListing},
     library::{self, LocalModel},
     llm::{self, ChatEvent, Endpoint},
-    server::{find_free_port, ManagedServer, ServerStatus},
+    server::{find_free_port, ManagedServer, ServerState, ServerStatus},
     pyengine::{self, PyInstall, PyKind, Variant},
     strata::{self, StrataInstall},
     tiering::{self, Machine, ModelShape, Plan, PlanOptions, Tier},
@@ -34,6 +34,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio_util::sync::CancellationToken;
 
+mod jit;
 mod web;
 
 type Res<T> = Result<T, String>;
@@ -63,6 +64,7 @@ pub struct AppState {
     sessions: Mutex<HashMap<String, Arc<Session>>>,
     http: reqwest::Client,
     web: web::Web,
+    jit: jit::Jit,
 }
 
 impl AppState {
@@ -171,9 +173,13 @@ fn save_settings(app: AppHandle, state: State<AppState>, mut settings: Settings)
     settings.web_password = old.web_password.clone();
     settings.save().map_err(errs)?;
     let web_changed = (old.web_ui, old.web_port, old.web_lan, &old.web_addresses) != (settings.web_ui, settings.web_port, settings.web_lan, &settings.web_addresses);
+    let jit_changed = (old.jit_api, old.server_port, old.lan_access, &old.lan_addresses) != (settings.jit_api, settings.server_port, settings.lan_access, &settings.lan_addresses);
     *state.settings.write().unwrap() = settings;
     if web_changed {
-        tauri::async_runtime::spawn(web::restart(app));
+        tauri::async_runtime::spawn(web::restart(app.clone()));
+    }
+    if jit_changed {
+        tauri::async_runtime::spawn(jit::restart(app));
     }
     Ok(())
 }
@@ -181,6 +187,19 @@ fn save_settings(app: AppHandle, state: State<AppState>, mut settings: Settings)
 #[tauri::command]
 fn web_ui_status(state: State<AppState>) -> web::WebStatus {
     web::status(&state)
+}
+
+#[derive(Serialize)]
+struct JitInfo {
+    #[serde(flatten)]
+    status: jit::JitStatus,
+    /// Models loaded beside the main one.
+    loaded: Vec<jit::JitLoaded>,
+}
+
+#[tauri::command]
+fn jit_status(state: State<AppState>) -> JitInfo {
+    JitInfo { status: jit::status(&state), loaded: jit::loaded(&state) }
 }
 
 #[tauri::command]
@@ -526,7 +545,7 @@ async fn py_engine_start(state: State<'_, AppState>, kind: PyKind, model: String
         return Err("enter a Hugging Face model id or a folder".into());
     }
     let host = "127.0.0.1";
-    state.llm.set_exposure(s.exposed_ips());
+    state.llm.set_exposure(jit::server_exposure(&s));
     let args = pyengine::serve_args(kind, &pyengine::ServeOptions { model: &model, host, port: s.server_port, ctx });
     let tag = match kind {
         PyKind::Vllm => "vllm",
@@ -631,6 +650,9 @@ fn server_logs(state: State<AppState>, which: String, last: usize) -> Vec<String
 #[tauri::command]
 async fn server_stop(state: State<'_, AppState>, which: String) -> Res<()> {
     server(&state, &which).stop().await;
+    if which == "llm" {
+        jit::stop_extra(&state).await;
+    }
     if which == "sd" {
         *state.sd_model.lock().unwrap() = None;
     }
@@ -644,7 +666,7 @@ async fn llm_start(state: State<'_, AppState>, opts: RunOptions) -> Res<Option<P
         return strata_start(&state, strata::Source::Path(&opts.path), &label, opts.ctx, opts.vision).await.map(|_| None);
     }
     let mut s = state.settings();
-    let eng = pick_engine(&s, EngineKind::Llama)?;
+    pick_engine(&s, EngineKind::Llama)?;
     if let Some(c) = &opts.custom_args {
         let key = opts.path.file_name().unwrap_or_default().to_string_lossy().to_string();
         if c.trim().is_empty() {
@@ -655,11 +677,18 @@ async fn llm_start(state: State<'_, AppState>, opts: RunOptions) -> Res<Option<P
         s.save().map_err(errs)?;
         *state.settings.write().unwrap() = s.clone();
     }
-    let (shape, _, mmproj) = shape_for_file(&opts.path, opts.vision).map_err(errs)?;
     let machine = state.machine().await;
-    let base = base_options(&s, &opts, mmproj);
-    state.llm.set_exposure(s.exposed_ips());
-    state.llm.start_llama(&eng.binary, shape.total_bytes, |lvl| tiering::plan(&shape, &machine, &PlanOptions { safe_level: lvl, ..base.clone() }), &s.language, s.server_key()).await.map(Some).map_err(errs)
+    launch_llama(&state, &state.llm, &opts, machine).await.map(Some)
+}
+
+/// Plan for `machine` and start llama.cpp in `server`.
+async fn launch_llama(state: &AppState, server: &ManagedServer, opts: &RunOptions, machine: Machine) -> Res<Plan> {
+    let s = state.settings();
+    let eng = pick_engine(&s, EngineKind::Llama)?;
+    let (shape, _, mmproj) = shape_for_file(&opts.path, opts.vision).map_err(errs)?;
+    let base = base_options(&s, opts, mmproj);
+    server.set_exposure(jit::server_exposure(&s));
+    server.start_llama(&eng.binary, shape.total_bytes, |lvl| tiering::plan(&shape, &machine, &PlanOptions { safe_level: lvl, ..base.clone() }), &s.language, s.server_key()).await.map_err(errs)
 }
 
 /// Serve the model through Strata's launcher. Strata chooses its own GPU /
@@ -671,7 +700,7 @@ async fn strata_start(state: &AppState, source: strata::Source<'_>, label: &Path
     state.llm.stop().await;
     let port = find_free_port("127.0.0.1", s.server_port).ok_or("no free port")?;
     // Strata serves this computer only; chosen LAN addresses are forwarded to it.
-    state.llm.set_exposure(s.exposed_ips());
+    state.llm.set_exposure(jit::server_exposure(&s));
     let key = s.server_key();
     let mut env = strata::env(&s);
     if let Some(k) = &key {
@@ -968,6 +997,7 @@ pub fn run() {
         sessions: Mutex::new(HashMap::new()),
         http: openmodel_core::http_client(),
         web: web::Web::default(),
+        jit: jit::Jit::default(),
     };
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -980,6 +1010,7 @@ pub fn run() {
             forward_server_events(&h, "sd", &st.sd);
             web::relay_events(&h);
             tauri::async_runtime::spawn(web::restart(h.clone()));
+            tauri::async_runtime::spawn(jit::restart(h.clone()));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1029,6 +1060,7 @@ pub fn run() {
             approval_resolve,
             endpoint_models,
             web_ui_status,
+            jit_status,
             web_ui_set_password,
         ])
         .build(tauri::generate_context!())

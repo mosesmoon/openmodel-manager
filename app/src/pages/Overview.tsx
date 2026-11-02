@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, Engines, gb, Hardware, NamedEndpoint, VramUse } from "../api";
+import { api, Engines, gb, Hardware, JitStatus, NamedEndpoint, VramUse } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 import { findProvider } from "../providers";
@@ -9,6 +9,10 @@ type ProvState = { state: "checking" } | { state: "nokey" } | { state: "ok"; mod
 export default function Overview() {
   const { t } = useI18n();
   const { llm, sd, settings, go, fail } = useApp();
+  const [jit, setJit] = useState<JitStatus | null>(null);
+  useEffect(() => {
+    api.jitStatus().then(setJit, () => {});
+  }, [settings.jit_api, settings.server_port, settings.lan_access, llm?.state]);
   const [hw, setHw] = useState<Hardware | null>(null);
   const [vram, setVram] = useState<VramUse[]>([]);
   const [eng, setEng] = useState<Engines | null>(null);
@@ -98,7 +102,19 @@ export default function Overview() {
           <h2>{t("overview.llm")}</h2>
           <div><span className={"dot " + (llm?.state ?? "stopped")} />{t(("server." + (llm?.state ?? "stopped")) as Key)}</div>
           {llm?.model && <div className="muted small ellipsis" title={llm.model}>{llm.model}</div>}
-          {llm?.state === "ready" && (
+          {jit?.running && (
+            <div className="small" style={{ marginTop: 6 }}>
+              {t("overview.api")}{settings.jit_api ? "（JIT）" : ""}:
+              {jit.urls.map((u) => <div key={u} className="mono">{u}</div>)}
+              {settings.server_api_key && (
+                <div className="row" style={{ marginTop: 4 }}>
+                  {t("overview.api_key")}: <span className="mono">{settings.server_api_key}</span>
+                  <button className="btn" onClick={() => navigator.clipboard.writeText(settings.server_api_key ?? "")}>{t("overview.copy")}</button>
+                </div>
+              )}
+            </div>
+          )}
+          {llm?.state === "ready" && !jit && (
             <div className="small" style={{ marginTop: 6 }}>
               {t("overview.api")}:
               {["127.0.0.1", ...llm.exposed].map((ip) => <div key={ip} className="mono">http://{ip}:{llm.port}/v1</div>)}

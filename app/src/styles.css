@@ -157,9 +157,25 @@ label.check { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 .bar > div { height: 100%; background: var(--accent); transition: width 0.3s; }
 .split { display: flex; height: 12px; border-radius: 4px; overflow: hidden; background: var(--panel-2); }
 .split > div { height: 100%; }
-.split .g { background: var(--accent); }
-.split .r { background: #8aa79b; }
-.split .d { background: var(--warn); }
+.split .g, .legend .g { background: var(--accent); }
+.split .r, .legend .r { background: #4a7fd4; }
+.split .d, .legend .d { background: #e08a2e; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); }
+/* Long option text (sizes, Mac notes) must not widen a card past its column. */
+.grid > .card { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.card select { max-width: 100%; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.stats { display: flex; gap: 28px; }
+.stats > div { display: grid; gap: 2px; }
+.stats b { font-size: 20px; }
+.cardhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.cardhead h3 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.pillcol { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.dropdown { position: relative; }
+.dropdown > summary { list-style: none; }
+.dropdown > summary::-webkit-details-marker { display: none; }
+.dropdown .menu { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; min-width: 180px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 6px; box-shadow: 0 6px 20px rgba(0,0,0,.12); }
+.jit { border-top: 1px solid var(--line); padding-top: 10px; }
 
 table { width: 100%; border-collapse: collapse; }
 td, th { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }

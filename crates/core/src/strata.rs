@@ -262,8 +262,8 @@ pub const MANAGED: &[ManagedModel] = &[ManagedModel {
         ManagedSet { model: "ist-das-2.00bpw", label: "2.00 bpw (IQ2_XXS)", disk_gb: 257.0 },
         ManagedSet { model: "ist-das-2.25bpw", label: "2.25 bpw (IQ2_XS)", disk_gb: 274.0 },
     ],
-    desc_zh: "DeepSeek 的大型 MoE，只能用 Strata 跑：除了模型本身，還需要約 111 GB 的 n-gram（Engram）表與 8 GB 的草稿模型，放在 SSD 上邊讀邊算。需要 12 GB 以上 VRAM、至少 46 GB 記憶體（建議 64 GB）和 NVMe SSD。Strata 會自行下載（可續傳、核對 SHA-256）並啟動，預設 8K 上下文。",
-    desc_en: "DeepSeek's large MoE, which runs only on Strata: besides the model it needs a ~111 GB n-gram (Engram) table and an 8 GB drafter, read from the SSD as it generates. Needs 12 GB+ VRAM, at least 46 GB RAM (64 GB recommended) and an NVMe SSD. Strata downloads it (resumable, SHA-256 checked) and starts it; 8K context by default.",
+    desc_zh: "大型 MoE，只支援 Strata：除了模型本身，還需要 NVMe SSD 約 119 GB 的空間（Engram + 草稿）。且需 12 GB 以上 VRAM、至少 46 GB 記憶體。Strata 會自行下載並啟動，預設 8K 上下文。",
+    desc_en: "Large MoE, Strata only: besides the model it needs about 119 GB on an NVMe SSD (Engram + drafter), 12 GB+ VRAM and at least 46 GB of RAM. Strata downloads and starts it; 8K context by default.",
 }];
 
 pub fn find_managed(id: &str) -> Option<&'static ManagedModel> {

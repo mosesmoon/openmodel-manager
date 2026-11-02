@@ -7,12 +7,36 @@ This file records the changes in each version, loosely following [Keep a Changel
 > Beta 版的程式內版本號仍是 0.1.0，安裝檔檔名也是 `0.1.0`，正式發行 0.1.1 時才會更新。
 > Beta builds still carry version 0.1.0 inside the app and in the installer file names; it changes at the 0.1.1 release.
 
-## [0.1.1-beta.4] - 2026-11-02
+## [0.1.1-beta.4] - 2026-11-03
+
+### 新增
+- **保持 API 開啟（JIT）**：「執行」頁的開關。沒有執行模型時，OpenAI API 仍會列出已下載的模型；其他程式或 Agent 呼叫某個模型時自動掛載。GPU 放得下就與已掛載的模型並存，放不下就先卸載既有的模型。
+- **推論模型**：「模型」頁新增推論模型推薦清單，同樣有標籤與篩選。
+- 國家篩選改為下拉選單，可勾選多個國家。
+
+### 變更
+- 「執行」頁的配置計畫把首次載入時間與預估速度放在最前面；資源條分成 GPU、記憶體、NVMe 三段，各用不同顏色。
+- 模型卡的國家標籤只顯示國旗與國名，標籤改為上下排列。
+- DeepSeekV4.1-Flash 模型卡的說明縮短。
 
 ### 修正
+- Hermes Agent 等工具用自訂端點連線時出現 HTTP 404：API 現在由閘道提供，支援 `GET /v1/models/{id}`、`/props` 等這些工具會查詢的路徑。
+- 模型卡內容過長時會超出卡片範圍。
 - 「模型還沒下載」的提示改為指向正確的分頁「模型 → AI 生圖 / 影片」。
 
+### Added
+- **Keep the API on (JIT)**: a switch on the Run page. With no model running, the OpenAI API still lists the downloaded models, and loads a model when another app or agent calls it. It stays next to the loaded model if the GPU has room; otherwise the loaded model is unloaded first.
+- **Reasoning models**: a new list of recommended reasoning models on the Models page, with the same tags and filters.
+- The country filter is now a drop-down list where you can tick several countries.
+
+### Changed
+- The Run page's plan shows the first-load time and the estimated speed first; the resource bar is split into GPU, RAM and NVMe, each in its own colour.
+- Model cards show only the flag and country name, with their badges stacked.
+- Shorter description on the DeepSeekV4.1-Flash card.
+
 ### Fixed
+- Hermes Agent and similar tools got HTTP 404 from a custom endpoint: the API now goes through a gateway that answers `GET /v1/models/{id}`, `/props` and the other routes these tools check.
+- Long content could spill out of a model card.
 - The "model not downloaded" hint now points to the right tab, Models → AI image / video.
 
 ## [0.1.1-beta.3] - 2026-11-02

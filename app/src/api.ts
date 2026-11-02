@@ -26,6 +26,7 @@ export interface Settings {
   image_port: number;
   lan_access: boolean;
   server_api_key: string | null;
+  jit_api: boolean;
   lan_addresses: string[];
   web_ui: boolean;
   web_port: number;
@@ -89,6 +90,7 @@ export type ServerState = "stopped" | "starting" | "ready" | "crashed";
 export interface ServerStatus { state: ServerState; port: number; model: string | null; engine: string; safe_level: number; gpu_layers: [number, number] | null; api_key: string | null; exposed: string[]; last_crash: { problems: string[]; exit_code: number | null; tail: string[] } | null }
 export interface WebStatus { running: boolean; urls: string[]; error: string | null }
 export interface NetAddr { name: string; ip: string }
+export interface JitStatus { running: boolean; port: number; urls: string[]; error: string | null; loaded: { name: string; port: number }[] }
 export interface LoadProgress { stage: string; fraction: number; elapsed_secs: number }
 export type ServerEvent =
   | { type: "status"; state: ServerState; port: number }
@@ -166,6 +168,7 @@ export const api = {
   approve: (session: string, id: string, decision: Decision) => invoke<boolean>("approval_resolve", { session, id, decision }),
   endpointModels: (endpoint: Endpoint) => invoke<string[]>("endpoint_models", { endpoint }),
   webStatus: () => invoke<WebStatus>("web_ui_status"),
+  jitStatus: () => invoke<JitStatus>("jit_status"),
   webSetPassword: (password: string) => invoke<void>("web_ui_set_password", { password }),
 };
 

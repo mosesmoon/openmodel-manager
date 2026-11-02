@@ -23,7 +23,7 @@
 - **對話**：可接本機模型或 AI 服務供應商，包括 Anthropic、OpenAI、Google AI Studio、xAI Grok、NVIDIA NIM 及任何 OpenAI 相容 API。支援工具呼叫、圖片輸入、顯示思考過程。
 - **Agent**：在指定的工作資料夾內讀寫檔案、執行指令，每一步都有清單可看。
 - **AI 生成圖片 / 影片**：Z-Image、FLUX.2 klein、FLUX.1 schnell、Qwen-Image、Wan2.2 等。
-- **OpenAI 相容 API**：啟動的模型可以給其他程式使用。可設定 API key（也可留空），並勾選要開放的網路卡。
+- **OpenAI 相容 API**：啟動的模型可以給其他程式和 Agent（例如 Hermes Agent）使用。可設定 API key（也可留空），並勾選要開放的網路卡。開啟 JIT 後，沒有執行模型時 API 仍會列出已下載的模型，呼叫時自動掛載。
 - **網頁管理介面**：其他電腦或手機可用瀏覽器開啟和桌面版相同的介面，有密碼登入和綠／紅啟用開關，也能選要開放的網路卡。
 - **自訂版面**：導覽選單可以放在左、右、上、下，邊緣的半圓按鈕可以收合選單。
 - **供應鏈安全**：CI 掃描相依套件漏洞，產生 SPDX 與 CycloneDX 格式的 SBOM，並為安裝檔簽署建置來源證明。
@@ -54,7 +54,7 @@
 
 ## 讓其他程式透過 OpenAI API 連進來
 
-在「執行」頁啟動模型後，OpenModel-Manager 會開一個 OpenAI 相容的伺服器（預設 `http://127.0.0.1:8080/v1`，實際連接埠顯示在概覽頁）。任何支援 OpenAI API 的工具都能直接連，例如 Open WebUI、Continue、Cline、或 `openai` SDK：
+OpenModel-Manager 在 `http://127.0.0.1:8080/v1`（連接埠可在設定修改，概覽頁會顯示網址）提供 OpenAI 相容的 API。任何支援 OpenAI API 的工具都能直接連，例如 Hermes Agent、Open WebUI、Continue、Cline、或 `openai` SDK。在這些工具填「自訂端點」時，網址填到 `/v1` 為止：
 
 ```python
 from openai import OpenAI
@@ -73,7 +73,15 @@ print(r.choices[0].message.content)
 2. 勾選要開放的網路卡。清單只列出有連上網路的 IPv4 位址，都沒勾時會開放全部網卡。
 3. 概覽頁會列出每個可連線的網址。
 
-模型伺服器本身只聽 `127.0.0.1`，勾選的位址由 OpenModel-Manager 轉接過去，所以沒勾的網卡連不進來。
+模型伺服器本身只聽 `127.0.0.1`，OpenModel-Manager 的 API 閘道在你勾選的位址上接收連線再轉過去，所以沒勾的網卡連不進來。沒勾「允許本機以外的電腦連線」時，用區網 IP（例如 `http://192.168.0.101:8080/v1`）連線會被拒絕。
+
+**保持 API 開啟（JIT）**：在「執行」頁打開這個開關後：
+
+- 沒有執行模型時，`GET /v1/models` 仍會列出所有已下載的模型。
+- 其他程式呼叫某個模型時（請求中的 `model` 填清單裡的名稱），會自動掛載該模型再回應。
+- 已經有模型在執行時，GPU 放得下就讓兩個模型並存；放不下就先卸載既有的模型。
+
+沒開 JIT 時，所有呼叫都交給目前執行中的模型；沒有模型在執行時會回傳 503。
 
 **API key**：可在「設定」填入或按「產生」，留空就是不需要 key。設定後，用戶端要帶 `Authorization: Bearer <key>`（上面範例的 `api_key=`）。llama.cpp、vLLM、Strata 都會檢查 key，MLX 沒有驗證功能。開放給其他電腦時建議設定 key。
 

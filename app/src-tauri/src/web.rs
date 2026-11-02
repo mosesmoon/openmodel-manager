@@ -266,6 +266,7 @@ async fn dispatch(app: &AppHandle, cmd: &str, a: Value) -> Res<Value> {
         "approval_resolve" => out(approval_resolve(h(), st(), arg(&a, "session")?, arg(&a, "id")?, arg(&a, "decision")?)),
         "endpoint_models" => out(endpoint_models(st(), arg(&a, "endpoint")?).await?),
         "web_ui_status" => out(web_ui_status(st())),
+        "jit_status" => out(jit_status(st())),
         "web_ui_set_password" => out(web_ui_set_password(st(), arg(&a, "password")?)?),
         // Opens a window on the computer itself, not in the browser.
         "open_folder" => Err("not available in the web page".into()),

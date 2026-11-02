@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, gb, LlmEngine, LocalModel, PlanPreview, PyEngineInfo, PyKind } from "../api";
+import { api, gb, JitStatus, LlmEngine, LocalModel, PlanPreview, PyEngineInfo, PyKind } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 import { SplitBar } from "./Models";
+import { Switch } from "./Settings";
 
 const CTX_CHOICES = [4096, 8192, 16384, 32768, 65536, 131072, 262144];
 
 export default function Run() {
   const { t } = useI18n();
-  const { llm, llmEvents, pageArg, fail, go } = useApp();
+  const { llm, llmEvents, pageArg, fail, go, settings, saveSettings } = useApp();
+  const [jit, setJit] = useState<JitStatus | null>(null);
   const [models, setModels] = useState<LocalModel[]>([]);
   const [path, setPath] = useState<string>(pageArg ?? llm?.model ?? "");
   const [ctx, setCtx] = useState<number | null>(null);
@@ -32,6 +34,13 @@ export default function Run() {
       if (l.length && !l.some((x) => x.path === path)) setPath(l[0].path);
     }, fail);
   }, []);
+
+  useEffect(() => {
+    const poll = () => api.jitStatus().then(setJit, () => {});
+    poll();
+    const id = setInterval(poll, 3000);
+    return () => clearInterval(id);
+  }, [settings.jit_api]);
 
   // New model selected: forget the custom args typed for the previous one.
   useEffect(() => setCustom(null), [path]);
@@ -135,13 +144,27 @@ export default function Run() {
             )}
             {llm?.state === "ready" && <button className="btn" onClick={() => go("chat")}>{t("nav.chat")}</button>}
           </div>
+          <div className="jit stack" style={{ gap: 4 }}>
+            <div className="row">
+              <Switch on={settings.jit_api} label={t("run.jit")} onChange={(v) => saveSettings({ ...settings, jit_api: v }).catch(fail)} />
+              <b className="small">{t("run.jit")}</b>
+            </div>
+            <div className="small muted">{t("run.jit_hint")}</div>
+            {jit && (
+              <div className="small">
+                <span className="muted">{t("overview.api")}:</span>
+                {jit.urls.map((u) => <div key={u} className="mono">{u}</div>)}
+                {jit.error && <div className="note warn small">{t("run.jit_waiting").replace("{port}", String(jit.port))}</div>}
+                {jit.loaded.length > 0 && <div className="muted">{t("run.jit_also")}: {jit.loaded.map((x) => x.name).join("、")}</div>}
+              </div>
+            )}
+          </div>
           {llm && (
             <div className="small">
               <span className={"dot " + llm.state} />{t(("server." + llm.state) as Key)}
               {llm.engine === "strata" && <> · Strata{llm.model && !models.some((x) => x.path === llm.model) ? ` · ${llm.model}` : ""}</>}
               {(llm.engine === "vllm" || llm.engine === "mlx") && <> · {llm.engine === "vllm" ? "vLLM" : "MLX"} · {llm.model}</>}
-              {llm.state === "ready" && <> · <span className="mono">http://127.0.0.1:{llm.port}/v1</span></>}
-              {llm.safe_level > 0 && <> · {t("run.safe")} {llm.safe_level}</>}
+                            {llm.safe_level > 0 && <> · {t("run.safe")} {llm.safe_level}</>}
               {llm.gpu_layers && <> · {t("run.offloaded")} {llm.gpu_layers[0]}/{llm.gpu_layers[1]}</>}
             </div>
           )}
@@ -167,13 +190,15 @@ export default function Run() {
                 <h2 style={{ margin: 0 }}>{t("run.plan")}</h2>
                 <span className={"pill " + plan.tier}>{plan.tier_label}</span>
               </div>
+              <div className="stats">
+                <div><span className="muted small">{t("run.first_load")}</span><b>≈ {plan.est_load_secs.toFixed(0)} s</b></div>
+                <div><span className="muted small">{t("run.tps")}</span><b>{plan.est_tps.toFixed(1)} tok/s</b></div>
+              </div>
               <div>{plan.summary}</div>
               <SplitBar gpu={plan.gpu_bytes} ram={plan.ram_bytes} disk={plan.disk_bytes} />
               <div className="row small">
-                <span>{t("run.tps")}: <b>{plan.est_tps.toFixed(1)} tok/s</b></span>
                 <span>{t("run.kv")}: {gb(plan.kv_bytes, 2)}</span>
                 <span>{t("models.ctx")}: {plan.ctx / 1024}K</span>
-                <span>{t("run.load")} {plan.est_load_secs.toFixed(0)}s</span>
                 <span className="muted">{preview.summary.arch} · {preview.summary.block_count} layers{preview.summary.expert_count > 1 ? ` · MoE ${preview.summary.expert_used_count}/${preview.summary.expert_count}` : ""}</span>
               </div>
               {[plan.gpu_note, plan.ram_note, plan.disk_note].filter(Boolean).map((n, i) => <div key={i} className="small muted">· {n}</div>)}

@@ -51,6 +51,9 @@ pub struct Settings {
     /// means every LAN address this computer has.
     #[serde(default)]
     pub lan_addresses: Vec<String>,
+    /// Keep the OpenAI API answering on `server_port` while no model runs,
+    /// and load the model a request names on demand.
+    pub jit_api: bool,
     /// Key clients of the local LLM server must send; blank means none.
     #[serde(default)]
     pub server_api_key: Option<String>,
@@ -103,6 +106,7 @@ impl Default for Settings {
             image_port: 7860,
             lan_access: false,
             server_api_key: None,
+            jit_api: false,
             lan_addresses: vec![],
             web_ui: false,
             web_port: 8765,

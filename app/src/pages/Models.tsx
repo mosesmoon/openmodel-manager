@@ -1,36 +1,63 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { inBrowser, pickPath, reveal } from "../bridge";
 import { api, CatalogEntry, gb, HfModel, LocalModel, ManagedModel, MediaModel, RepoListing } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 
 const TAGS = ["chat", "code", "vision", "reasoning"];
-// Badge text stays English in both languages ("China Model"); the tooltip is translated.
-const ORIGINS: Record<string, { badge: string; zh: string; en: string }> = {
-  CN: { badge: "China Model", zh: "中國", en: "China" },
-  US: { badge: "USA Model", zh: "美國", en: "the USA" },
-  FR: { badge: "France Model", zh: "法國", en: "France" },
-  JP: { badge: "Japan Model", zh: "日本", en: "Japan" },
-  KR: { badge: "Korea Model", zh: "韓國", en: "South Korea" },
-  TW: { badge: "Taiwan Model", zh: "台灣", en: "Taiwan" },
-  DE: { badge: "Germany Model", zh: "德國", en: "Germany" },
-  GB: { badge: "UK Model", zh: "英國", en: "the UK" },
-  CA: { badge: "Canada Model", zh: "加拿大", en: "Canada" },
-  AE: { badge: "UAE Model", zh: "阿聯", en: "the UAE" },
+// Country of the developer: the badge shows the flag and the country name.
+const ORIGINS: Record<string, { zh: string; en: string }> = {
+  CN: { zh: "中國", en: "China" },
+  US: { zh: "美國", en: "USA" },
+  FR: { zh: "法國", en: "France" },
+  JP: { zh: "日本", en: "Japan" },
+  KR: { zh: "韓國", en: "Korea" },
+  TW: { zh: "台灣", en: "Taiwan" },
+  DE: { zh: "德國", en: "Germany" },
+  GB: { zh: "英國", en: "UK" },
+  CA: { zh: "加拿大", en: "Canada" },
+  AE: { zh: "阿聯", en: "UAE" },
 };
 /** Flag emoji from an ISO 3166 alpha-2 code (two regional indicator symbols). */
 const flag = (code: string) => (/^[A-Z]{2}$/.test(code) ? String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65)) : "");
-const originBadge = (o: string) => `${flag(o)} ${ORIGINS[o]?.badge ?? `${o} Model`}`.trim();
+const countryName = (code: string, lang: string) => (lang.startsWith("zh") ? ORIGINS[code]?.zh : ORIGINS[code]?.en) ?? code;
+const originBadge = (code: string, lang: string) => `${flag(code)} ${countryName(code, lang)}`.trim();
 
 function OriginPill({ code }: { code?: string | null }) {
   const { t, lang } = useI18n();
   if (!code) return null;
-  const o = ORIGINS[code] ?? { badge: `${code} Model`, zh: code, en: code };
-  return <span className="pill origin" title={t("models.origin_tip").replace("{country}", lang.startsWith("zh") ? o.zh : o.en)}>{originBadge(code)}</span>;
+  return <span className="pill origin" title={t("models.origin_tip").replace("{country}", countryName(code, lang))}>{originBadge(code, lang)}</span>;
+}
+
+/** Country filter: a drop-down list of check boxes. None ticked shows every country. */
+function CountryPicker({ all, chosen, count, onChange }: { all: string[]; chosen: string[]; count: (o: string) => number; onChange: (v: string[]) => void }) {
+  const { t, lang } = useI18n();
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (ref.current?.open && !ref.current.contains(e.target as Node)) ref.current.open = false;
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+  const label = chosen.length === 0 ? t("models.country_all") : chosen.map((o) => originBadge(o, lang)).join("、");
+  return (
+    <details className="dropdown" ref={ref}>
+      <summary className={"chip" + (chosen.length ? " on" : "")}>{t("models.country")}：{label} ▾</summary>
+      <div className="menu">
+        {all.map((o) => (
+          <label key={o} className="check">
+            <input type="checkbox" checked={chosen.includes(o)} onChange={() => onChange(chosen.includes(o) ? chosen.filter((x) => x !== o) : [...chosen, o])} />
+            {originBadge(o, lang)} <span className="muted">{count(o)}</span>
+          </label>
+        ))}
+      </div>
+    </details>
+  );
 }
 const tagLabel = (t: (k: Key) => string, x: string) => (TAGS.includes(x) ? t(("tag." + x) as Key) : x);
 
-type Tab = "recommended" | "installed" | "media" | "search";
+type Tab = "recommended" | "reasoning" | "installed" | "media" | "search";
 
 export default function Models() {
   const { t } = useI18n();
@@ -39,11 +66,12 @@ export default function Models() {
     <>
       <h1>{t("nav.models")}</h1>
       <div className="tabs">
-        {(["recommended", "installed", "media", "search"] as Tab[]).map((x) => (
+        {(["recommended", "reasoning", "installed", "media", "search"] as Tab[]).map((x) => (
           <button key={x} className={"tab" + (x === tab ? " on" : "")} onClick={() => setTab(x)}>{t(`models.${x}`)}</button>
         ))}
       </div>
       {tab === "recommended" && <Recommended />}
+      {tab === "reasoning" && <Recommended key="reasoning" only="reasoning" />}
       {tab === "installed" && <Installed />}
       {tab === "media" && <Media />}
       {tab === "search" && <Search />}
@@ -51,7 +79,8 @@ export default function Models() {
   );
 }
 
-function Recommended() {
+/** Catalog cards; `only` limits them to models with that tag. */
+function Recommended({ only }: { only?: string }) {
   const { t } = useI18n();
   const { track, fail } = useApp();
   const [list, setList] = useState<CatalogEntry[] | null>(null);
@@ -62,10 +91,11 @@ function Recommended() {
   const [origins, setOrigins] = useState<string[]>([]);
   const [managed, setManaged] = useState<ManagedModel[]>([]);
   const [hasStrata, setHasStrata] = useState(false);
-  const load = () => api.catalog().then(setList, fail);
+  const keep = <T extends { tags: string[] }>(xs: T[]) => (only ? xs.filter((m) => m.tags.includes(only)) : xs);
+  const load = () => api.catalog().then((l) => setList(keep(l)), fail);
   useEffect(() => {
     load();
-    api.strataManaged().then(setManaged, () => {});
+    api.strataManaged().then((m) => setManaged(keep(m)), () => {});
     api.engines().then((e) => setHasStrata(!!e.strata), () => {});
   }, []);
   if (!list) return <p className="muted">{t("common.loading")}</p>;
@@ -83,7 +113,7 @@ function Recommended() {
       <div className="chips" style={{ marginBottom: 10 }}>
         <span className="muted small">{t("models.filter")}</span>
         <button className={"chip" + (tags.length === 0 && !strataOnly && origins.length === 0 ? " on" : "")} onClick={() => { setTags([]); setStrataOnly(false); setOrigins([]); }}>{t("models.filter_all")}</button>
-        {TAGS.map((x) => (
+        {TAGS.filter((x) => x !== only).map((x) => (
           <button key={x} className={"chip" + (tags.includes(x) ? " on" : "")} onClick={() => toggle(x)}>
             {tagLabel(t, x)} <span className="muted">{count(x)}</span>
           </button>
@@ -91,11 +121,7 @@ function Recommended() {
         <button className={"chip" + (strataOnly ? " on" : "")} onClick={() => setStrataOnly(!strataOnly)} title={t("models.strata_tip")}>
           Strata <span className="muted">{list.filter((m) => m.strata).length + managed.length}</span>
         </button>
-        {allOrigins.map((o) => (
-          <button key={o} className={"chip" + (origins.includes(o) ? " on" : "")} onClick={() => setOrigins(origins.includes(o) ? origins.filter((x) => x !== o) : [...origins, o])}>
-            {originBadge(o)} <span className="muted">{byOrigin(o)}</span>
-          </button>
-        ))}
+        <CountryPicker all={allOrigins} chosen={origins} count={byOrigin} onChange={setOrigins} />
       </div>
       <label className="check" style={{ marginBottom: 12 }}>
         <input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />
@@ -113,9 +139,9 @@ function Recommended() {
           return (
             <div key={m.id} className="card stack">
               <div>
-                <div className="row spread">
-                  <h3 style={{ margin: 0 }}>{m.name}</h3>
-                  <span className="row" style={{ gap: 6 }}>
+                <div className="cardhead">
+                  <h3>{m.name}</h3>
+                  <span className="pillcol">
                     <OriginPill code={m.origin} />
                     {sp && <span className="pill strata" title={t("models.strata_tip")}>Strata</span>}
                     {fit && <span className={"pill " + fit.tier}>{fit.tier_label}</span>}
@@ -193,9 +219,9 @@ function ManagedCard({ m, hasStrata }: { m: ManagedModel; hasStrata: boolean }) 
   return (
     <div className="card stack">
       <div>
-        <div className="row spread">
-          <h3 style={{ margin: 0 }}>{m.name}</h3>
-          <span className="row" style={{ gap: 6 }}>
+        <div className="cardhead">
+          <h3>{m.name}</h3>
+          <span className="pillcol">
             <OriginPill code={m.origin} />
             <span className="pill strata" title={t("models.strata_tip")}>{t("models.strata_only")}</span>
           </span>
@@ -237,8 +263,10 @@ export function SplitBar({ gpu, ram, disk }: { gpu: number; ram: number; disk: n
         <div className="r" style={{ width: `${(ram / total) * 100}%` }} />
         <div className="d" style={{ width: `${(disk / total) * 100}%` }} />
       </div>
-      <div className="muted small">
-        {t("run.gpu")} {gb(gpu)} · {t("run.ram")} {gb(ram)}{disk > 0 ? ` · ${t("run.disk")} ${gb(disk)}` : ""}
+      <div className="legend small">
+        <span><i className="g" />{t("run.gpu")} {gb(gpu)}</span>
+        <span><i className="r" />{t("run.ram")} {gb(ram)}</span>
+        <span><i className="d" />NVMe {gb(disk)}</span>
       </div>
     </div>
   );

@@ -28,7 +28,7 @@ An open-source, cross-platform (Windows / Linux / macOS) manager for local AI mo
   - Tool calls, image input, and visible reasoning.
 - **Agent**: reads and writes files and runs commands inside a workspace folder you choose, with a visible step list.
 - **AI image and video generation**: Z-Image, FLUX.2 klein, FLUX.1 schnell, Qwen-Image, Wan2.2 and more.
-- **OpenAI-compatible API**: other apps can use the model you start. You can set an API key (or leave it blank) and choose which network cards to open it on.
+- **OpenAI-compatible API**: other apps and agents (such as Hermes Agent) can use the model you start. You can set an API key (or leave it blank) and choose which network cards to open it on. With JIT on, the API lists your downloaded models even when none is running and loads the one a request asks for.
 - **Web management page**: other computers and phones can open the same UI in a browser, with password sign-in and a green/red on/off switch. You also choose which network cards it opens on.
 - **Layout**: the menu can sit on the left, right, top or bottom, and the half-circle button on its edge folds it away.
 - **Supply-chain security**: CI scans dependencies for vulnerabilities, produces SPDX and CycloneDX SBOMs, and signs build provenance for the installers.
@@ -59,7 +59,7 @@ Get builds from [Releases](../../releases).
 
 ## Connect other apps through the OpenAI API
 
-When you start a model on the Run page, OpenModel-Manager serves it through an OpenAI-compatible API. The default address is `http://127.0.0.1:8080/v1`; the Overview page shows the actual port. Any tool that speaks the OpenAI API can connect, such as Open WebUI, Continue, Cline, or the `openai` SDK:
+OpenModel-Manager serves an OpenAI-compatible API at `http://127.0.0.1:8080/v1` (the port is in Settings; the Overview page shows the address). Any tool that speaks the OpenAI API can connect, such as Hermes Agent, Open WebUI, Continue, Cline, or the `openai` SDK. When a tool asks for a custom endpoint, enter the address up to `/v1`:
 
 ```python
 from openai import OpenAI
@@ -78,7 +78,15 @@ To let other computers connect:
 2. Tick the network cards to open. Only connected IPv4 addresses are listed; with none ticked, every card is opened.
 3. The Overview page lists every address the server can be reached on.
 
-The model server itself listens only on `127.0.0.1`. OpenModel-Manager forwards each ticked address to it, so cards you leave unticked can't be used to connect.
+The model server itself listens only on `127.0.0.1`. OpenModel-Manager's API gateway accepts connections on the ticked addresses and passes them on, so cards you leave unticked can't be used to connect. Without "Allow connections from other computers", a LAN address such as `http://192.168.0.101:8080/v1` refuses the connection.
+
+**Keep the API on (JIT)**: with this switch on (Run page):
+
+- `GET /v1/models` lists every downloaded model even when none is running.
+- A call that names a model (`model` set to a name from that list) loads it first, then answers.
+- If a model is already running, the new one is loaded next to it when the GPU has room; otherwise the running model is unloaded first.
+
+Without JIT, every call goes to the model that is running, and the API answers 503 when none is.
 
 **API key**: set one in Settings, or press Generate. Leave it blank for no key. Once a key is set, clients must send `Authorization: Bearer <key>` (`api_key=` in the example above). llama.cpp, vLLM and Strata check the key; MLX has no authentication. Setting a key is recommended when other computers can connect.
 
