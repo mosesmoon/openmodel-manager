@@ -1,5 +1,5 @@
 {
- "version": 1,
+ "version": 2,
  "models": [
   {
    "id": "qwen3.8-flash-next",
@@ -19,12 +19,14 @@
    "quants": [
     "UD-Q2_K_XL",
     "UD-Q3_K_XL",
+    "UD-IQ4_XS",
     "UD-Q4_K_XL"
    ],
    "size_gb": {
-    "UD-Q2_K_XL": 52,
-    "UD-Q3_K_XL": 66,
-    "UD-Q4_K_XL": 82
+    "UD-Q2_K_XL": 78.9,
+    "UD-Q3_K_XL": 90.0,
+    "UD-IQ4_XS": 93.7,
+    "UD-Q4_K_XL": 111.3
    },
    "org": "Qwen",
    "tags": [
@@ -36,6 +38,45 @@
    "desc": {
     "zh-TW": "180B 總參數的 MoE，每個 token 只用 6B；支援影像輸入。需要很大的記憶體。",
     "en": "180B-parameter MoE with 6B active per token; accepts images. Needs a lot of memory."
+   }
+  },
+  {
+   "id": "qwen3.8-flash-next-ista",
+   "name": "Qwen3.8 Flash-Next (ISTA-DASLab)",
+   "repo": "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF",
+   "release": "2026-08",
+   "params_b": 180,
+   "active_b": 6,
+   "layers": 48,
+   "kv_layers": 12,
+   "kv_heads": 2,
+   "head_dim": 256,
+   "experts": 512,
+   "experts_used": 10,
+   "ctx_max": 262144,
+   "vision": true,
+   "quants": [
+    "Q2_0",
+    "IQ2_XS",
+    "IQ3_XXS",
+    "IQ3_S"
+   ],
+   "size_gb": {
+    "Q2_0": 66.4,
+    "IQ2_XS": 68.0,
+    "IQ3_XXS": 75.8,
+    "IQ3_S": 83.6
+   },
+   "org": "Qwen",
+   "tags": [
+    "chat",
+    "code",
+    "vision",
+    "reasoning"
+   ],
+   "desc": {
+    "zh-TW": "同一個 Qwen3.8 Flash-Next，ISTA-DASLab 依每個張量的敏感度分配位元（GSQ-RCO），比同大小的一般量化更準。標準 GGUF，llama.cpp 可直接跑；Strata 首推這組。Q2_0 速度最快。",
+    "en": "The same Qwen3.8 Flash-Next, quantized by ISTA-DASLab with per-tensor bit allocation (GSQ-RCO): more accurate than uniform quants of the same size. Standard GGUF that llama.cpp runs as is; Strata's first recommendation. Q2_0 is the fastest."
    }
   },
   {
@@ -68,6 +109,14 @@
    "desc": {
     "zh-TW": "27B 稠密模型，綜合能力均衡，支援影像輸入；24 GB 顯示卡可全部放進 GPU。",
     "en": "Balanced 27B dense model with image input; fits fully on a 24 GB GPU."
+   },
+   "size_gb": {
+    "UD-Q2_K_XL": 9.8,
+    "UD-Q3_K_XL": 13.1,
+    "UD-Q4_K_XL": 17.6,
+    "UD-Q5_K_XL": 20.9,
+    "UD-Q6_K_XL": 25.3,
+    "Q8_0": 29.0
    }
   },
   {
@@ -89,11 +138,11 @@
     "UD-Q8_K_XL"
    ],
    "size_gb": {
-    "UD-Q2_K_XL": 11.5,
-    "UD-Q3_K_XL": 13.5,
-    "UD-Q4_K_XL": 16.5,
-    "UD-Q6_K_XL": 21,
-    "UD-Q8_K_XL": 32
+    "UD-Q2_K_XL": 12.4,
+    "UD-Q3_K_XL": 13.4,
+    "UD-Q4_K_XL": 15.9,
+    "UD-Q6_K_XL": 26.3,
+    "UD-Q8_K_XL": 32.3
    },
    "org": "Meta",
    "tags": [
@@ -126,7 +175,7 @@
     "UD-Q3_K_XL",
     "UD-Q4_K_XL",
     "UD-Q5_K_XL",
-    "Q6_K",
+    "UD-Q6_K_XL",
     "Q8_0"
    ],
    "org": "Qwen",
@@ -138,6 +187,14 @@
    "desc": {
     "zh-TW": "35B MoE，每個 token 只用 3B，生成很快，適合寫程式，支援影像輸入。",
     "en": "35B MoE with 3B active per token: very fast, strong at coding, accepts images."
+   },
+   "size_gb": {
+    "UD-Q2_K_XL": 12.3,
+    "UD-Q3_K_XL": 16.8,
+    "UD-Q4_K_XL": 22.4,
+    "UD-Q5_K_XL": 26.6,
+    "UD-Q6_K_XL": 31.8,
+    "Q8_0": 36.9
    }
   },
   {
@@ -169,6 +226,14 @@
    "desc": {
     "zh-TW": "27B 稠密模型，適合長篇寫作與多步推理，支援影像輸入。",
     "en": "27B dense model for long-form writing and multi-step reasoning; accepts images."
+   },
+   "size_gb": {
+    "UD-Q2_K_XL": 11.8,
+    "UD-Q3_K_XL": 14.5,
+    "UD-Q4_K_XL": 17.6,
+    "UD-Q5_K_XL": 20.0,
+    "Q6_K": 22.5,
+    "Q8_0": 28.6
    }
   },
   {
@@ -188,10 +253,10 @@
    "vision": true,
    "quants": [
     "UD-Q3_K_XL",
+    "UD-Q4_K_M",
     "UD-Q4_K_XL",
-    "Q4_K_M",
     "UD-Q5_K_XL",
-    "Q6_K",
+    "UD-Q6_K",
     "Q8_0"
    ],
    "org": "Google",
@@ -202,6 +267,14 @@
    "desc": {
     "zh-TW": "26B MoE，每個 token 用 4B，多語言與看圖能力佳。",
     "en": "26B MoE with 4B active; good multilingual and image understanding."
+   },
+   "size_gb": {
+    "UD-Q3_K_XL": 12.9,
+    "UD-Q4_K_M": 16.9,
+    "UD-Q4_K_XL": 17.0,
+    "UD-Q5_K_XL": 21.2,
+    "UD-Q6_K": 23.2,
+    "Q8_0": 26.9
    }
   },
   {
@@ -233,6 +306,14 @@
    "desc": {
     "zh-TW": "Gemma 4 系列最大的稠密模型，適合長文件與看圖。",
     "en": "Largest dense Gemma 4 model; suited to long documents and images."
+   },
+   "size_gb": {
+    "UD-Q2_K_XL": 11.8,
+    "UD-Q3_K_XL": 15.4,
+    "UD-Q4_K_XL": 18.8,
+    "Q4_K_M": 18.3,
+    "Q6_K": 25.2,
+    "Q8_0": 33.2
    }
   },
   {
@@ -262,6 +343,13 @@
    "desc": {
     "zh-TW": "12B 稠密模型，12–16 GB 顯示卡就能順跑，支援影像輸入。",
     "en": "12B dense model that runs well on 12–16 GB GPUs; accepts images."
+   },
+   "size_gb": {
+    "Q4_K_M": 7.1,
+    "UD-Q4_K_XL": 7.4,
+    "Q5_K_M": 8.4,
+    "Q6_K": 9.8,
+    "Q8_0": 13.1
    }
   },
   {
@@ -285,8 +373,8 @@
    "size_gb": {
     "Q4_K_M": 5.0,
     "UD-Q4_K_XL": 5.1,
-    "Q6_K": 6.4,
-    "Q8_0": 8.2
+    "Q6_K": 7.1,
+    "Q8_0": 8.3
    },
    "org": "Google",
    "tags": [
@@ -327,6 +415,11 @@
    "desc": {
     "zh-TW": "122B MoE，每個 token 用 10B；能力強，需要大記憶體或多張顯示卡。",
     "en": "122B MoE with 10B active; very capable, needs lots of RAM or several GPUs."
+   },
+   "size_gb": {
+    "UD-Q2_K_XL": 41.8,
+    "UD-Q3_K_XL": 57.0,
+    "UD-Q4_K_XL": 77.0
    }
   },
   {
@@ -356,6 +449,13 @@
    "desc": {
     "zh-TW": "9B 稠密模型，8 GB 顯示卡可用，支援影像輸入。",
     "en": "9B dense model usable on 8 GB GPUs; accepts images."
+   },
+   "size_gb": {
+    "Q4_K_M": 5.7,
+    "UD-Q4_K_XL": 6.0,
+    "Q5_K_M": 6.6,
+    "Q6_K": 7.5,
+    "Q8_0": 9.5
    }
   },
   {
@@ -383,6 +483,12 @@
    "desc": {
     "zh-TW": "4B 小模型，CPU 或內顯也能跑，支援影像輸入。",
     "en": "4B small model that runs on CPU or iGPU; accepts images."
+   },
+   "size_gb": {
+    "Q4_K_M": 2.7,
+    "Q5_K_M": 3.1,
+    "Q6_K": 3.5,
+    "Q8_0": 4.5
    }
   },
   {
@@ -413,6 +519,13 @@
    "desc": {
     "zh-TW": "30B MoE，每個 token 用 3B，速度快，擅長寫程式與工具呼叫。",
     "en": "30B MoE with 3B active; fast and good at coding and tool calls."
+   },
+   "size_gb": {
+    "UD-Q3_K_XL": 13.8,
+    "UD-Q4_K_XL": 17.5,
+    "Q4_K_M": 18.3,
+    "Q6_K": 24.7,
+    "Q8_0": 31.8
    }
   },
   {
@@ -439,6 +552,13 @@
    "desc": {
     "zh-TW": "24B 稠密的程式代理模型，適合搭配 Agent 頁面使用。",
     "en": "24B dense coding-agent model, a good fit for the Agent page."
+   },
+   "size_gb": {
+    "UD-Q3_K_XL": 11.9,
+    "UD-Q4_K_XL": 14.5,
+    "Q4_K_M": 14.3,
+    "Q6_K": 19.3,
+    "Q8_0": 25.1
    }
   },
   {

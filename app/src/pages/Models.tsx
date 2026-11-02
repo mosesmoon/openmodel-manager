@@ -3,7 +3,10 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { api, CatalogEntry, gb, HfModel, LocalModel, MediaModel, RepoListing } from "../api";
 import { useApp } from "../App";
-import { useI18n } from "../i18n";
+import { Key, useI18n } from "../i18n";
+
+const TAGS = ["chat", "code", "vision", "reasoning"];
+const tagLabel = (t: (k: Key) => string, x: string) => (TAGS.includes(x) ? t(("tag." + x) as Key) : x);
 
 type Tab = "recommended" | "installed" | "media" | "search";
 
@@ -32,17 +35,34 @@ function Recommended() {
   const [list, setList] = useState<CatalogEntry[] | null>(null);
   const [choice, setChoice] = useState<Record<string, string>>({});
   const [vision, setVision] = useState(true);
+  const [tags, setTags] = useState<string[]>([]);
+  const [strataOnly, setStrataOnly] = useState(false);
   const load = () => api.catalog().then(setList, fail);
   useEffect(() => { load(); }, []);
   if (!list) return <p className="muted">{t("common.loading")}</p>;
+  const toggle = (x: string) => setTags(tags.includes(x) ? tags.filter((y) => y !== x) : [...tags, x]);
+  const shown = list.filter((m) => tags.every((x) => m.tags.includes(x)) && (!strataOnly || !!m.strata));
   return (
     <>
+      <div className="chips" style={{ marginBottom: 10 }}>
+        <span className="muted small">{t("models.filter")}</span>
+        <button className={"chip" + (tags.length === 0 && !strataOnly ? " on" : "")} onClick={() => { setTags([]); setStrataOnly(false); }}>{t("models.filter_all")}</button>
+        {TAGS.map((x) => (
+          <button key={x} className={"chip" + (tags.includes(x) ? " on" : "")} onClick={() => toggle(x)}>
+            {tagLabel(t, x)} <span className="muted">{list.filter((m) => m.tags.includes(x)).length}</span>
+          </button>
+        ))}
+        <button className={"chip" + (strataOnly ? " on" : "")} onClick={() => setStrataOnly(!strataOnly)} title={t("models.strata_tip")}>
+          Strata <span className="muted">{list.filter((m) => m.strata).length}</span>
+        </button>
+      </div>
       <label className="check" style={{ marginBottom: 12 }}>
         <input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />
         {t("models.with_vision")}
       </label>
+      {shown.length === 0 && <p className="muted">{t("models.filter_none")}</p>}
       <div className="grid">
-        {list.map((m) => {
+        {shown.map((m) => {
           const q = choice[m.id] ?? m.recommended ?? m.quants[0];
           const fit = m.fits.find((f) => f.quant === q);
           const sp = m.strata;
@@ -62,7 +82,7 @@ function Recommended() {
                 <div className="muted small">{m.org} · {m.release} · {m.params_b}B{m.active_b ? ` (${m.active_b}B active)` : ""}</div>
               </div>
               <div className="small">{m.description}</div>
-              <div className="row">{m.tags.map((x) => <span key={x} className="pill">{x}</span>)}</div>
+              <div className="row">{m.tags.map((x) => <span key={x} className="pill">{tagLabel(t, x)}</span>)}</div>
               <div className="row">
                 <select value={q} onChange={(e) => setChoice({ ...choice, [m.id]: e.target.value })}>
                   {m.fits.map((f) => (

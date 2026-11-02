@@ -55,7 +55,8 @@ pub fn parse_manifest(text: &str, platform: &str) -> Option<ManifestEntry> {
 }
 
 /// Hugging Face packs Strata's docs list as supported (docs/MODELS.md).
-/// ISTA-DASLab and DeepSeek sets exist too but are not in our catalog.
+/// Its DeepSeek sets need extra shared files that only Strata's own setup
+/// fetches, so they are not here.
 #[derive(Debug, Clone, Copy, Serialize, PartialEq)]
 pub struct OfficialPack {
     /// Normalised family name, as in `normalise`.
@@ -65,6 +66,7 @@ pub struct OfficialPack {
 }
 
 pub const OFFICIAL: &[OfficialPack] = &[
+    OfficialPack { family: "qwen3.8-flash-next", repo: "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF", quants: &["Q2_0", "IQ2_XS", "IQ3_XXS", "IQ3_S"] },
     OfficialPack { family: "qwen3.8-flash-next", repo: "unsloth/Qwen3.8-Flash-Next-GGUF", quants: &["UD-IQ4_XS", "UD-Q4_K_XL", "UD-Q5_K_XL", "UD-Q6_K_XL", "Q8_0"] },
     // Strata runs Qwen3.6 only from the edition that carries the MTP draft layer.
     OfficialPack { family: "qwen3.6-35b-a3b", repo: "unsloth/Qwen3.6-35B-A3B-MTP-GGUF", quants: &["UD-Q4_K_XL", "UD-Q6_K_XL", "Q8_0"] },
@@ -74,10 +76,11 @@ fn normalise(name: &str) -> String {
     name.to_lowercase().replace(['_', ' '], "-")
 }
 
-/// The official pack for a catalog model (by id, name or repo).
-pub fn official_pack(name: &str) -> Option<&'static OfficialPack> {
-    let n = normalise(name);
-    OFFICIAL.iter().find(|p| n.contains(p.family))
+/// The official pack for a catalog model: the one from the same repo, else
+/// the family's pack from another repo (Qwen3.6 needs its MTP edition).
+pub fn official_pack(id: &str, repo: &str) -> Option<&'static OfficialPack> {
+    let n = normalise(id);
+    OFFICIAL.iter().find(|p| p.repo.eq_ignore_ascii_case(repo)).or_else(|| OFFICIAL.iter().find(|p| n.contains(p.family)))
 }
 
 /// The model families Strata runs, judged from a file or folder path.
@@ -276,9 +279,10 @@ mod tests {
 
     #[test]
     fn official_packs_by_catalog_id() {
-        assert_eq!(official_pack("qwen3.8-flash-next").unwrap().repo, "unsloth/Qwen3.8-Flash-Next-GGUF");
-        assert_eq!(official_pack("Qwen3.6 35B-A3B").unwrap().repo, "unsloth/Qwen3.6-35B-A3B-MTP-GGUF");
-        assert!(official_pack("qwen3.6-27b").is_none());
+        assert_eq!(official_pack("qwen3.8-flash-next", "unsloth/Qwen3.8-Flash-Next-GGUF").unwrap().quants.len(), 5);
+        assert_eq!(official_pack("qwen3.8-flash-next-ista", "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF").unwrap().quants[0], "Q2_0");
+        assert_eq!(official_pack("qwen3.6-35b-a3b", "unsloth/Qwen3.6-35B-A3B-GGUF").unwrap().repo, "unsloth/Qwen3.6-35B-A3B-MTP-GGUF");
+        assert!(official_pack("qwen3.6-27b", "unsloth/Qwen3.6-27B-GGUF").is_none());
     }
 
     #[test]

@@ -256,7 +256,7 @@ async fn catalog(state: State<'_, AppState>) -> Res<Vec<CatalogEntry>> {
                 .collect();
             // Best tier first, then the largest (highest quality) quant within it.
             let recommended = fits.iter().max_by_key(|f| (rank(f.tier), f.size_bytes)).map(|f| f.quant.clone());
-            CatalogEntry { description: m.description(&s.language).to_string(), strata: strata::official_pack(&m.id), model: m, fits, recommended }
+            CatalogEntry { description: m.description(&s.language).to_string(), strata: strata::official_pack(&m.id, &m.repo), model: m, fits, recommended }
         })
         .collect())
 }

@@ -155,8 +155,9 @@ mod tests {
         let g = c.find("gpt-oss-20b").unwrap();
         assert_eq!(g.size_bytes("Q4_K_M"), 11_600_000_000);
         let q = c.find("qwen3.6-27b").unwrap();
-        // 27B x 4.85 bpw / 8 ~ 16.4 GB
-        let b = q.size_bytes("UD-Q4_K_XL") as f64 / 1e9;
+        assert_eq!(q.size_bytes("UD-Q4_K_XL"), 17_600_000_000);
+        // No listed size: 27B x 4.85 bpw / 8 ~ 16.4 GB
+        let b = q.size_bytes("Q4_K_M") as f64 / 1e9;
         assert!((16.0..17.0).contains(&b), "{b}");
     }
 
