@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, gb, LocalModel, PlanPreview } from "../api";
+import { api, gb, LlmEngine, LocalModel, PlanPreview } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 import { SplitBar } from "./Models";
@@ -17,9 +17,12 @@ export default function Run() {
   const [preview, setPreview] = useState<PlanPreview | null>(null);
   const [planErr, setPlanErr] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [engine, setEngine] = useState<LlmEngine>("llama");
+  const [hasStrata, setHasStrata] = useState(false);
   const logRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
+    api.engines().then((e) => setHasStrata(!!e.strata), () => {});
     api.library().then((l) => {
       setModels(l);
       if (!path && l.length) setPath(l[0].path);
@@ -36,10 +39,11 @@ export default function Run() {
         setPreview(p);
         setPlanErr(null);
         if (custom === null) setCustom(p.saved_custom_args);
+        if (custom === null) setEngine(p.strata_supported && hasStrata ? "strata" : "llama");
       }, (e) => { setPreview(null); setPlanErr(String(e)); });
     }, 250);
     return () => clearTimeout(id);
-  }, [path, ctx, vision, custom]);
+  }, [path, ctx, vision, custom, hasStrata]);
 
   const logs = useMemo(() => llmEvents.flatMap((e) => (e.type === "log" ? [e.line] : e.type === "note" ? [`* ${e.message}`] : [])), [llmEvents]);
   const progress = [...llmEvents].reverse().find((e) => e.type === "progress");
@@ -50,10 +54,11 @@ export default function Run() {
 
   const start = () => {
     setStarting(true);
-    api.llmStart({ path, ctx, custom_args: custom ?? "", vision }).then(() => {}, fail).finally(() => setStarting(false));
+    api.llmStart({ path, ctx, custom_args: custom ?? "", vision, engine }).then(() => {}, fail).finally(() => setStarting(false));
   };
   const running = llm?.state === "ready" || llm?.state === "starting" || starting;
-  const plan = preview?.plan;
+  const strata = engine === "strata";
+  const plan = strata ? undefined : preview?.plan;
   const mine = llm?.model && llm.model === path;
 
   return (
@@ -68,6 +73,17 @@ export default function Run() {
               {models.map((m) => <option key={m.path} value={m.path}>{m.name} {m.quant ? `(${m.quant})` : ""}</option>)}
             </select>
           </label>
+          {(hasStrata || preview?.strata_supported) && (
+            <label className="field">
+              <span>{t("run.engine")}</span>
+              <select value={engine} onChange={(e) => setEngine(e.target.value as LlmEngine)}>
+                <option value="llama">llama.cpp</option>
+                <option value="strata" disabled={!hasStrata}>Strata{hasStrata ? "" : ` — ${t("run.strata_missing")}`}</option>
+              </select>
+            </label>
+          )}
+          {strata && <div className="note">{t("run.strata_note")}</div>}
+          {strata && preview && !preview.strata_supported && <div className="note bad">{t("run.strata_unsupported")}</div>}
           <label className="field">
             <span>{t("run.ctx")}</span>
             <select value={ctx ?? ""} onChange={(e) => setCtx(e.target.value ? Number(e.target.value) : null)}>
@@ -78,14 +94,16 @@ export default function Run() {
           {preview?.mmproj && (
             <label className="check"><input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />{t("run.vision")}</label>
           )}
-          <label className="field">
-            <span>{t("run.custom")}</span>
-            <input type="text" className="mono" value={custom ?? ""} placeholder="-ngl 99 --temp 0.7" onChange={(e) => setCustom(e.target.value)} />
-            <span className="small muted">{t("run.custom_hint")}</span>
-          </label>
+          {!strata && (
+            <label className="field">
+              <span>{t("run.custom")}</span>
+              <input type="text" className="mono" value={custom ?? ""} placeholder="-ngl 99 --temp 0.7" onChange={(e) => setCustom(e.target.value)} />
+              <span className="small muted">{t("run.custom_hint")}</span>
+            </label>
+          )}
           <div className="row">
             {!running || !mine ? (
-              <button className="btn primary" disabled={!path || !!planErr || starting} onClick={start}>{t("common.start")}</button>
+              <button className="btn primary" disabled={!path || (!!planErr && !strata) || starting} onClick={start}>{t("common.start")}</button>
             ) : null}
             {(llm?.state === "ready" || llm?.state === "starting") && (
               <button className="btn" onClick={() => api.serverStop("llm").catch(fail)}>{t("common.stop")}</button>
@@ -95,12 +113,13 @@ export default function Run() {
           {llm && (
             <div className="small">
               <span className={"dot " + llm.state} />{t(("server." + llm.state) as Key)}
+              {llm.engine === "strata" && <> · Strata</>}
               {llm.state === "ready" && <> · <span className="mono">http://127.0.0.1:{llm.port}/v1</span></>}
               {llm.safe_level > 0 && <> · {t("run.safe")} {llm.safe_level}</>}
               {llm.gpu_layers && <> · {t("run.offloaded")} {llm.gpu_layers[0]}/{llm.gpu_layers[1]}</>}
             </div>
           )}
-          {llm?.state === "starting" && progress?.type === "progress" && (
+          {llm?.state === "starting" && llm.engine !== "strata" && progress?.type === "progress" && (
             <div className="stack" style={{ gap: 4 }}>
               <div className="bar"><div style={{ width: `${progress.fraction * 100}%` }} /></div>
               <div className="muted small">{progress.stage} · {progress.elapsed_secs.toFixed(0)}s</div>

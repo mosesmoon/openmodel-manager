@@ -150,6 +150,25 @@ function EnginesCard({ backend, setBackend }: { backend: Backend | null; setBack
           ))}
         </div>
       ))}
+      <div className="stack" style={{ gap: 6 }}>
+        <div className="row">
+          <b className="grow">Strata</b>
+          {eng?.strata_available && (
+            <button className="btn sm primary" onClick={() => api.strataInstall().then((id) => track(id, "Strata", () => load()), fail)}>{t("settings.install")}</button>
+          )}
+        </div>
+        <div className="muted small">{t("settings.strata_hint")}</div>
+        {eng && !eng.strata_available && <div className="muted small">{t("settings.strata_unavailable")}</div>}
+        {eng && eng.strata_available && !eng.strata && <div className="muted small">{t("common.none")}</div>}
+        {eng?.strata && (
+          <div className="row small">
+            <span>{eng.strata.version}</span>
+            <span className="muted mono ellipsis grow" title={eng.strata.launcher}>{eng.strata.launcher}</span>
+            <button className="btn sm" onClick={() => openPath(eng.strata_data_dir).catch(fail)} title={t("settings.strata_data")}>{t("common.open_folder")}</button>
+            <button className="btn sm danger" onClick={() => api.strataRemove().then(load, fail)}>{t("common.remove")}</button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -13,7 +13,8 @@
 | `tiering` | 全放 GPU → MoE `--n-cpu-moe` → 稠密 `-ngl` → mmap 溢出到硬碟；KV 大小；tok/s 估算；自動 context（不降速的最大值）；相容模式 1–5；自訂參數合併（同名覆寫、指定 `-ngl/-ot/--n-cpu-moe` 時停用自動配置） | 8 |
 | `hf` | 搜尋、檔案列表（分頁）、量化分組（含分卷）、mmproj 偵測、鏡像與 token | 3 |
 | `download` | `.part` 續傳（Range）、取消、重試（404/403 不重試）、多檔進度與速度 | 3 |
-| `engine` | GitHub release 資產挑選（llama.cpp 與 sd.cpp 命名、CUDA 版本依驅動、Windows cudart）、下載解壓（防 zip-slip）、匯入 zip / 既有資料夾 | 5 |
+| `engine` | GitHub release 資產挑選（llama.cpp 與 sd.cpp 命名、CUDA 版本依驅動（含新版 `CUDA UMD Version` 標頭）、Windows cudart）、掃描最近 15 個 release 取第一個有對應檔案的版本（llama.cpp 的 latest 不含 build）、下載解壓（防 zip-slip）、匯入 zip / 既有資料夾 | 7 |
+| `strata` | 第三方引擎 [Strata](https://github.com/Niko1221/Strata)（MIT）：安裝其 Terminal 套件（核對 install-manifest 的 SHA-256、跑 `strata update --check` 驗簽章），資料放在 `<engines>/strata/data`（`STRATA_DATA_DIR`）；用 `strata launch --model-path … --no-tui --restart` 啟動、`/health` 判斷就緒、`strata launch --stop` 停止；LAN 模式自動產生 API key。只呼叫它的程式，不含它的程式碼 | 4（+1 個 `--ignored` 實機安裝測試） |
 | `server` | 啟動 / 停止、log 擷取與載入階段解析、`/health`、port 自動往後找、崩潰原因分類、相容模式自動重試 | 5 |
 | `diffusion` | 7 個圖片 / 影片模型清單（Z-Image、FLUX.2 klein、FLUX.1 schnell、Qwen-Image、Qwen-Image-Edit、Wan2.2 TI2V 5B、Wan2.2 I2V A14B）、sd-server 參數、txt2img / img2img / 影片 job API、尺寸與幀數 | 5 |
 | `tools` | 審批閘門（後端強制、本次 / 本對話總是允許 / 拒絕）、計算機（evalexpr，無程式執行）、Bing RSS 搜尋、網頁擷取（拒絕本機與私有網段，逐跳檢查轉址）、檔案與指令工具 | 7 |
@@ -25,7 +26,7 @@
 
 ## 桌面程式（`app/`）
 
-- `app/src-tauri/src/lib.rs`：33 個 Tauri command，直接包 core。下載 / 安裝 / 影片是背景 job，透過 `progress`、`job-done` 事件回報、可取消；伺服器輸出走 `server` 事件；對話串流走 `chat` 事件；工具審批走 `approval` 事件，前端只能回答正在等待的請求（`approval_resolve`），無法直接執行受保護的工具。關閉視窗時會停掉 llama-server / sd-server。
+- `app/src-tauri/src/lib.rs`：33 個 Tauri command，直接包 core。下載 / 安裝 / 影片是背景 job，透過 `progress`、`job-done` 事件回報、可取消；伺服器輸出走 `server` 事件；對話串流走 `chat` 事件；工具審批走 `approval` 事件，前端只能回答正在等待的請求（`approval_resolve`），無法直接執行受保護的工具。關閉視窗時會停掉 llama-server / sd-server / Strata。執行頁可選 llama.cpp 或 Strata（模型屬於 Strata 支援的系列且已安裝時預設 Strata）。
 - `app/src`（React + Vite + TS）：概覽（硬體、即時 VRAM、VRAM 溢出警告、伺服器狀態）、模型（推薦含每個量化的預估速度與 GPU/RAM/硬碟分配、已安裝、畫圖 / 影片模型、HF 搜尋）、執行（配置計畫、實際指令、自訂參數每模型記住、載入進度、log、崩潰原因）、對話（本機或遠端 API、工具開關、附加圖片、思考過程、工具呼叫與結果、審批卡片）、畫圖、影片、Agent（工作資料夾、步驟清單、審批）、設定（資料夾、引擎安裝 / 匯入 / 移除、偏好後端、HF 鏡像與 token、GitHub 前綴、LAN、連接埠、保留記憶體、手動 GPU、遠端 API）。
 - i18n：`app/src/i18n.tsx`，繁中為預設，英文完整對應（缺字會在型別檢查時報錯）。
 - 已驗證：`tauri build --debug --no-bundle` 在 Windows 建置成功並能啟動；用模擬後端在瀏覽器跑過全部 8 頁、一輪含工具呼叫的對話、一次 Agent 審批。**尚未**用真的引擎與模型在 app 裡完整跑過。
@@ -35,6 +36,7 @@
 - `engine install` 與 `serve` 尚未實際下載引擎與載入模型；只在單元測試中用假程序驗證崩潰流程。
 - 相容模式的環境變數（`GGML_CUDA_DISABLE_GRAPHS`、`GGML_CUDA_FORCE_CUBLAS`）和 llama.cpp 目前版本的對應。
 - sd-server 的元件參數名稱（`--llm`、`--llm_vision`、`--clip_l`、`--t5xxl`、`--vae`）以 stable-diffusion.cpp 現行版本為準，需實測。
+- Strata：安裝流程已實測（下載、SHA-256、簽章、`launch --help` 參數）；尚未用真的模型啟動過（需要 Qwen3.8-Flash-Next / Qwen3.6-35B-A3B / DeepSeekV4.1-Flash 的檔案，第一次啟動會再下載 GPU 引擎）。
 - tok/s 估算的效率係數（GPU 0.65、CPU 0.55）需用三台測試機的實測值校正。
 
 建議的測試指令（每台機器）：

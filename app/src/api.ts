@@ -53,8 +53,9 @@ export interface Plan {
   args: string[]; env: [string, string][]; command: string; custom_args: string; manual_placement: boolean;
 }
 export interface ModelSummary { arch: string; name: string | null; quant: string; block_count: number; context_length: number; expert_count: number; expert_used_count: number; total_bytes: number }
-export interface PlanPreview { plan: Plan; summary: ModelSummary; mmproj: string | null; saved_custom_args: string }
-export interface RunOptions { path: string; ctx: number | null; custom_args: string | null; vision: boolean }
+export interface PlanPreview { plan: Plan; summary: ModelSummary; mmproj: string | null; saved_custom_args: string; strata_supported: boolean }
+export type LlmEngine = "llama" | "strata";
+export interface RunOptions { path: string; ctx: number | null; custom_args: string | null; vision: boolean; engine?: LlmEngine }
 
 export interface LocalModel { name: string; path: string; files: string[]; size_bytes: number; quant: string | null; mmproj: string | null; external: boolean }
 export interface HfModel { id: string; downloads: number; likes: number; lastModified: string | null; gated: unknown }
@@ -62,10 +63,11 @@ export interface RepoFile { path: string; size: number }
 export interface RepoListing { quants: { quant: string; files: RepoFile[]; total_bytes: number }[]; mmproj: RepoFile[] }
 
 export interface InstalledEngine { kind: EngineKind; version: string; backend: Backend; binary: string; dir: string; source: string }
-export interface Engines { llama: InstalledEngine[]; sd: InstalledEngine[]; recommended: Backend[] }
+export interface StrataInstall { version: string; launcher: string; dir: string }
+export interface Engines { llama: InstalledEngine[]; sd: InstalledEngine[]; recommended: Backend[]; strata: StrataInstall | null; strata_available: boolean; strata_data_dir: string }
 
 export type ServerState = "stopped" | "starting" | "ready" | "crashed";
-export interface ServerStatus { state: ServerState; port: number; model: string | null; safe_level: number; gpu_layers: [number, number] | null; last_crash: { problems: string[]; exit_code: number | null; tail: string[] } | null }
+export interface ServerStatus { state: ServerState; port: number; model: string | null; engine: string; safe_level: number; gpu_layers: [number, number] | null; last_crash: { problems: string[]; exit_code: number | null; tail: string[] } | null }
 export interface LoadProgress { stage: string; fraction: number; elapsed_secs: number }
 export type ServerEvent =
   | { type: "status"; state: ServerState; port: number }
@@ -118,7 +120,9 @@ export const api = {
   serverStatus: (which: "llm" | "sd") => invoke<ServerStatus>("server_status", { which }),
   serverLogs: (which: "llm" | "sd", last = 400) => invoke<string[]>("server_logs", { which, last }),
   serverStop: (which: "llm" | "sd") => invoke<void>("server_stop", { which }),
-  llmStart: (opts: RunOptions) => invoke<Plan>("llm_start", { opts }),
+  llmStart: (opts: RunOptions) => invoke<Plan | null>("llm_start", { opts }),
+  strataInstall: () => invoke<string>("strata_install"),
+  strataRemove: () => invoke<void>("strata_remove"),
   mediaModels: () => invoke<MediaModel[]>("media_models"),
   mediaDownload: (id: string, quant: string) => invoke<string>("media_download", { id, quant }),
   sdStart: (id: string, quant: string) => invoke<void>("sd_start", { id, quant }),

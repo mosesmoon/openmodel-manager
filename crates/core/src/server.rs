@@ -196,6 +196,20 @@ pub struct ServerStatus {
     pub safe_level: u8,
     pub gpu_layers: Option<(u64, u64)>,
     pub last_crash: Option<CrashInfo>,
+    /// "llama", "sd" or "strata".
+    pub engine: String,
+    /// Key clients must send (Strata in LAN mode).
+    #[serde(skip)]
+    pub api_key: Option<String>,
+}
+
+/// How to stop a server that runs detached from the process we started
+/// (Strata's launcher returns once its server is up).
+#[derive(Clone)]
+struct StopCommand {
+    program: PathBuf,
+    args: Vec<String>,
+    env: Vec<(String, String)>,
 }
 
 struct Inner {
@@ -207,6 +221,9 @@ struct Inner {
     logs: VecDeque<String>,
     parser: LogParser,
     last_crash: Option<CrashInfo>,
+    engine: String,
+    api_key: Option<String>,
+    stop_cmd: Option<StopCommand>,
 }
 
 /// One managed llama-server (or sd-server) process.
@@ -256,6 +273,9 @@ impl ManagedServer {
                 logs: VecDeque::new(),
                 parser: LogParser::default(),
                 last_crash: None,
+                engine: String::new(),
+                api_key: None,
+                stop_cmd: None,
             })),
             events: tx,
         }
@@ -278,6 +298,8 @@ impl ManagedServer {
             safe_level: i.safe_level,
             gpu_layers: i.parser.gpu_layers,
             last_crash: i.last_crash.clone(),
+            engine: i.engine.clone(),
+            api_key: i.api_key.clone(),
         }
     }
 
@@ -299,9 +321,16 @@ impl ManagedServer {
         let bind_host = if host == "0.0.0.0" { "0.0.0.0" } else { "127.0.0.1" };
         let port = find_free_port(bind_host, wanted).context("no free port")?;
         set_arg(&mut args, port_flag, &port.to_string());
+        let model = arg_value(&args, "-m").or_else(|| arg_value(&args, "--diffusion-model")).map(PathBuf::from);
+        let engine = if args.iter().any(|a| a == "--diffusion-model") { "sd" } else { "llama" };
+        self.launch(binary, &args, env, port, model, safe_level, engine)?;
+        Ok(port)
+    }
 
+    #[allow(clippy::too_many_arguments)]
+    fn launch(&self, binary: &Path, args: &[String], env: &[(String, String)], port: u16, model: Option<PathBuf>, safe_level: u8, engine: &str) -> Result<()> {
         let mut cmd = Command::new(binary);
-        cmd.args(&args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
+        cmd.args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
         if let Some(dir) = binary.parent() {
             cmd.current_dir(dir); // CUDA runtime DLLs live next to the binary on Windows
         }
@@ -311,7 +340,6 @@ impl ManagedServer {
         #[cfg(windows)]
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
         let mut child = cmd.spawn().with_context(|| format!("start {}", binary.display()))?;
-        let model = arg_value(&args, "-m").or_else(|| arg_value(&args, "--diffusion-model")).map(PathBuf::from);
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
         {
@@ -323,6 +351,9 @@ impl ManagedServer {
             i.safe_level = safe_level;
             i.logs.clear();
             i.parser = LogParser::default();
+            i.engine = engine.into();
+            i.api_key = None;
+            i.stop_cmd = None;
         }
         if let Some(o) = stdout {
             self.pump(o);
@@ -331,7 +362,7 @@ impl ManagedServer {
             self.pump(e);
         }
         self.emit(ServerEvent::Status { state: ServerState::Starting, port });
-        Ok(port)
+        Ok(())
     }
 
     fn pump<R: tokio::io::AsyncRead + Unpin + Send + 'static>(&self, r: R) {
@@ -413,9 +444,19 @@ impl ManagedServer {
     }
 
     pub async fn stop(&self) {
-        let child = self.inner.lock().unwrap().child.take();
+        let (child, stop_cmd) = {
+            let mut i = self.inner.lock().unwrap();
+            (i.child.take(), i.stop_cmd.take())
+        };
         if let Some(mut c) = child {
             let _ = c.kill().await;
+        }
+        if let Some(sc) = stop_cmd {
+            let mut cmd = Command::new(&sc.program);
+            cmd.args(&sc.args).envs(sc.env.iter().map(|(k, v)| (k, v))).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+            #[cfg(windows)]
+            cmd.creation_flags(0x0800_0000);
+            let _ = tokio::time::timeout(Duration::from_secs(60), cmd.status()).await;
         }
         let port = {
             let mut i = self.inner.lock().unwrap();
@@ -425,11 +466,79 @@ impl ManagedServer {
         self.emit(ServerEvent::Status { state: ServerState::Stopped, port });
     }
 
+    /// Start a server through Strata's launcher. The launcher prints its
+    /// progress (including a first-time engine download), starts the server
+    /// detached and returns; the server is ready once `/health` answers.
+    pub async fn start_strata(&self, launcher: &Path, args: Vec<String>, env: Vec<(String, String)>, port: u16, model: &Path, api_key: Option<String>) -> Result<()> {
+        self.stop().await;
+        self.launch(launcher, &args, &env, port, Some(model.to_path_buf()), 0, "strata")?;
+        {
+            let mut i = self.inner.lock().unwrap();
+            i.api_key = api_key;
+            i.stop_cmd = Some(StopCommand { program: launcher.to_path_buf(), args: crate::strata::stop_args(), env });
+        }
+        let http = reqwest::Client::builder().timeout(Duration::from_secs(3)).build()?;
+        let url = format!("http://127.0.0.1:{port}/health");
+        let t0 = Instant::now();
+        let mut launcher_done: Option<Instant> = None;
+        loop {
+            if launcher_done.is_none() {
+                let exited = {
+                    let mut i = self.inner.lock().unwrap();
+                    match i.child.as_mut().map(|c| c.try_wait()) {
+                        Some(Ok(Some(st))) => Some(st),
+                        _ => None,
+                    }
+                };
+                if let Some(st) = exited {
+                    tokio::time::sleep(Duration::from_millis(300)).await;
+                    if !st.success() {
+                        self.fail_start(st.code());
+                        bail!("Strata could not start the model (exit code {:?}); see the log", st.code());
+                    }
+                    launcher_done = Some(Instant::now());
+                }
+            }
+            if let Ok(r) = http.get(&url).send().await {
+                if r.status().is_success() {
+                    self.inner.lock().unwrap().state = ServerState::Ready;
+                    self.emit(ServerEvent::Status { state: ServerState::Ready, port });
+                    return Ok(());
+                }
+            }
+            // The launcher exits 0 without serving when Strata has no engine
+            // for this PC; allow a grace period for a slow server.
+            if launcher_done.map(|d| d.elapsed() > Duration::from_secs(120)).unwrap_or(false) {
+                self.fail_start(Some(0));
+                bail!("Strata finished but its server is not answering on port {port}; see the log");
+            }
+            let stage = self.inner.lock().unwrap().parser.stage;
+            self.emit(ServerEvent::Progress(estimate_progress(stage, t0.elapsed(), 0, 600.0)));
+            tokio::time::sleep(Duration::from_millis(1000)).await;
+        }
+    }
+
+    fn fail_start(&self, code: Option<i32>) {
+        let crash = {
+            let mut i = self.inner.lock().unwrap();
+            i.child = None;
+            i.stop_cmd = None;
+            i.state = ServerState::Crashed;
+            let c = CrashInfo { problems: i.parser.problems.clone(), exit_code: code, tail: i.logs.iter().rev().take(40).rev().cloned().collect() };
+            i.last_crash = Some(c.clone());
+            c
+        };
+        self.emit(ServerEvent::Crashed { problems: crash.problems, exit_code: code, safe_level: 0 });
+    }
+
     /// Start llama-server, retrying with higher compatibility levels when it
     /// crashes during load. `make_plan(level)` builds the plan for a level.
     pub async fn start_llama(&self, binary: &Path, total_bytes: u64, make_plan: impl Fn(u8) -> Plan, lang: &str) -> Result<Plan> {
         let zh = lang.starts_with("zh");
         let mut level = 0u8;
+        if self.inner.lock().unwrap().stop_cmd.is_some() {
+            self.stop().await; // a detached Strata server holds the GPU
+        }
         loop {
             let plan = make_plan(level);
             self.spawn(binary, plan.args.clone(), &plan.env, level)?;

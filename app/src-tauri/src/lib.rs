@@ -18,7 +18,8 @@ use openmodel_core::{
     hf::{HfClient, HfModel, RepoListing},
     library::{self, LocalModel},
     llm::{self, ChatEvent, Endpoint},
-    server::{ManagedServer, ServerStatus},
+    server::{find_free_port, ManagedServer, ServerStatus},
+    strata::{self, StrataInstall},
     tiering::{self, Machine, ModelShape, Plan, PlanOptions, Tier},
     tools::{ApprovalGate, ChatToolbox, Decision, CHAT_MAX_ROUNDS},
     Progress, ProgressFn,
@@ -278,6 +279,9 @@ struct RunOptions {
     ctx: Option<u64>,
     custom_args: Option<String>,
     vision: bool,
+    /// "strata" runs the model through Strata; anything else uses llama.cpp.
+    #[serde(default)]
+    engine: Option<String>,
 }
 
 fn base_options(s: &Settings, o: &RunOptions, mmproj: Option<PathBuf>) -> PlanOptions {
@@ -300,6 +304,8 @@ struct PlanPreview {
     summary: gguf::ModelSummary,
     mmproj: Option<PathBuf>,
     saved_custom_args: String,
+    /// The model belongs to a family Strata runs.
+    strata_supported: bool,
 }
 
 #[tauri::command]
@@ -312,7 +318,8 @@ async fn plan_preview(state: State<'_, AppState>, opts: RunOptions) -> Res<PlanP
     summary.layer_bytes.clear();
     summary.layer_expert_bytes.clear();
     let key = opts.path.file_name().unwrap_or_default().to_string_lossy().to_string();
-    Ok(PlanPreview { plan, summary, mmproj, saved_custom_args: s.custom_args.get(&key).cloned().unwrap_or_default() })
+    let strata_supported = strata::supports(&opts.path.display().to_string());
+    Ok(PlanPreview { plan, summary, mmproj, saved_custom_args: s.custom_args.get(&key).cloned().unwrap_or_default(), strata_supported })
 }
 
 // ---------------------------------------------------------------- library / Hugging Face
@@ -372,13 +379,43 @@ struct Engines {
     llama: Vec<InstalledEngine>,
     sd: Vec<InstalledEngine>,
     recommended: Vec<Backend>,
+    strata: Option<StrataInstall>,
+    /// Strata ships a package for this system.
+    strata_available: bool,
+    strata_data_dir: PathBuf,
 }
 
 #[tauri::command]
 async fn engines(state: State<'_, AppState>) -> Res<Engines> {
     let s = state.settings();
     let hw = state.hardware(false).await;
-    Ok(Engines { llama: engine::list_installed(&s, EngineKind::Llama), sd: engine::list_installed(&s, EngineKind::Sd), recommended: hw.recommended_backends })
+    Ok(Engines {
+        llama: engine::list_installed(&s, EngineKind::Llama),
+        sd: engine::list_installed(&s, EngineKind::Sd),
+        recommended: hw.recommended_backends,
+        strata: strata::installed(&s),
+        strata_available: strata::platform().is_some(),
+        strata_data_dir: strata::data_dir(&s),
+    })
+}
+
+#[tauri::command]
+fn strata_install(app: AppHandle, state: State<AppState>) -> String {
+    let s = state.settings();
+    spawn_job(&app, &state, "engine", move |cancel, progress, jid| async move {
+        let i = strata::install(&s, &cancel, &jid, &progress).await?;
+        Ok(vec![i.launcher.display().to_string()])
+    })
+}
+
+#[tauri::command]
+async fn strata_remove(state: State<'_, AppState>) -> Res<()> {
+    let s = state.settings();
+    let i = strata::installed(&s).ok_or("Strata is not installed")?;
+    if state.llm.status().engine == "strata" {
+        state.llm.stop().await;
+    }
+    strata::remove(&i).map_err(errs)
 }
 
 #[tauri::command]
@@ -446,7 +483,10 @@ async fn server_stop(state: State<'_, AppState>, which: String) -> Res<()> {
 }
 
 #[tauri::command]
-async fn llm_start(state: State<'_, AppState>, opts: RunOptions) -> Res<Plan> {
+async fn llm_start(state: State<'_, AppState>, opts: RunOptions) -> Res<Option<Plan>> {
+    if opts.engine.as_deref() == Some("strata") {
+        return strata_start(&state, &opts).await.map(|_| None);
+    }
     let mut s = state.settings();
     let eng = pick_engine(&s, EngineKind::Llama)?;
     if let Some(c) = &opts.custom_args {
@@ -462,7 +502,25 @@ async fn llm_start(state: State<'_, AppState>, opts: RunOptions) -> Res<Plan> {
     let (shape, _, mmproj) = shape_for_file(&opts.path, opts.vision).map_err(errs)?;
     let machine = state.machine().await;
     let base = base_options(&s, &opts, mmproj);
-    state.llm.start_llama(&eng.binary, shape.total_bytes, |lvl| tiering::plan(&shape, &machine, &PlanOptions { safe_level: lvl, ..base.clone() }), &s.language).await.map_err(errs)
+    state.llm.start_llama(&eng.binary, shape.total_bytes, |lvl| tiering::plan(&shape, &machine, &PlanOptions { safe_level: lvl, ..base.clone() }), &s.language).await.map(Some).map_err(errs)
+}
+
+/// Serve the model through Strata's launcher. Strata chooses its own GPU /
+/// RAM placement, so no plan is made here.
+async fn strata_start(state: &AppState, opts: &RunOptions) -> Res<()> {
+    let s = state.settings();
+    let inst = strata::installed(&s).ok_or("Strata is not installed (Settings → Engines)")?;
+    // Free whatever holds the port before choosing one.
+    state.llm.stop().await;
+    let port = find_free_port(s.listen_host(), s.server_port).ok_or("no free port")?;
+    let key = s.lan_access.then(|| uuid::Uuid::new_v4().simple().to_string());
+    let mut env = strata::env(&s);
+    if let Some(k) = &key {
+        env.push((strata::KEY_ENV.into(), k.clone()));
+    }
+    let args = strata::launch_args(&strata::LaunchOptions { model: &opts.path, port, ctx: opts.ctx, vision: opts.vision, lan: s.lan_access });
+    std::fs::create_dir_all(strata::data_dir(&s)).map_err(err)?;
+    state.llm.start_strata(&inst.launcher, args, env, port, &opts.path, key).await.map_err(errs)
 }
 
 #[derive(Serialize)]
@@ -582,7 +640,7 @@ fn resolve_endpoint(state: &AppState, ep: Option<Endpoint>) -> Res<Endpoint> {
             if st.state != openmodel_core::server::ServerState::Ready {
                 return Err("no local model is running (Run page)".into());
             }
-            Ok(Endpoint { base_url: format!("{}/v1", state.llm.base_url()), api_key: None, model: String::new() })
+            Ok(Endpoint { base_url: format!("{}/v1", state.llm.base_url()), api_key: st.api_key, model: String::new() })
         }
     }
 }
@@ -725,6 +783,8 @@ pub fn run() {
             engine_install,
             engine_import,
             engine_remove,
+            strata_install,
+            strata_remove,
             server_status,
             server_logs,
             server_stop,
