@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { openPath, openUrl } from "@tauri-apps/plugin-opener";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { api, Backend, EngineKind, Engines, NamedEndpoint, Settings } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
@@ -55,13 +55,13 @@ export default function SettingsPage() {
             <span style={{ width: 90 }} className="muted">{t(("settings." + k) as Key)}</span>
             <input type="text" className="grow mono" value={s[k]} onChange={(e) => set(k, e.target.value)} />
             <button className="btn sm" onClick={() => pickDir(k)}>{t("common.browse")}</button>
-            <button className="btn sm" onClick={() => openPath(s[k]).catch(fail)}>{t("common.open_folder")}</button>
+            <button className="btn sm" onClick={() => api.openFolder(s[k]).catch(fail)}>{t("common.open_folder")}</button>
           </div>
         ))}
         <div className="row">
           <span style={{ width: 90 }} className="muted">{t("settings.data_dir")}</span>
           <span className="grow mono small">{dataDir}</span>
-          <button className="btn sm" onClick={() => openPath(dataDir).catch(fail)}>{t("common.open_folder")}</button>
+          <button className="btn sm" onClick={() => api.openFolder(dataDir).catch(fail)}>{t("common.open_folder")}</button>
         </div>
       </div>
 
@@ -165,7 +165,7 @@ function EnginesCard({ backend, setBackend }: { backend: Backend | null; setBack
           <div className="row small">
             <span>{eng.strata.version}</span>
             <span className="muted mono ellipsis grow" title={eng.strata.launcher}>{eng.strata.launcher}</span>
-            <button className="btn sm" onClick={() => openPath(eng.strata_data_dir).catch(fail)} title={t("settings.strata_data")}>{t("common.open_folder")}</button>
+            <button className="btn sm" onClick={() => api.openFolder(eng.strata_data_dir).catch(fail)} title={t("settings.strata_data")}>{t("common.open_folder")}</button>
             <button className="btn sm danger" onClick={() => api.strataRemove().then(load, fail)}>{t("common.remove")}</button>
           </div>
         )}

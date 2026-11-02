@@ -412,6 +412,19 @@ async fn engines(state: State<'_, AppState>) -> Res<Engines> {
     })
 }
 
+/// Open a folder in the system file manager. Only directories: the webview
+/// has no general open-path permission, so it cannot launch programs.
+#[tauri::command]
+fn open_folder(app: AppHandle, path: PathBuf) -> Res<()> {
+    use tauri_plugin_opener::OpenerExt;
+    std::fs::create_dir_all(&path).map_err(err)?;
+    let dir = std::fs::canonicalize(&path).map_err(err)?;
+    if !dir.is_dir() {
+        return Err(format!("{} is not a folder", path.display()));
+    }
+    app.opener().open_path(dir.display().to_string(), None::<&str>).map_err(err)
+}
+
 #[tauri::command]
 fn strata_install(app: AppHandle, state: State<AppState>) -> String {
     let s = state.settings();
@@ -838,6 +851,7 @@ pub fn run() {
             engine_install,
             engine_import,
             engine_remove,
+            open_folder,
             strata_install,
             strata_remove,
             strata_managed,

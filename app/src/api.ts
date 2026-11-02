@@ -127,6 +127,7 @@ export const api = {
   serverLogs: (which: "llm" | "sd", last = 400) => invoke<string[]>("server_logs", { which, last }),
   serverStop: (which: "llm" | "sd") => invoke<void>("server_stop", { which }),
   llmStart: (opts: RunOptions) => invoke<Plan | null>("llm_start", { opts }),
+  openFolder: (path: string) => invoke<void>("open_folder", { path }),
   strataInstall: () => invoke<string>("strata_install"),
   strataRemove: () => invoke<void>("strata_remove"),
   strataManaged: () => invoke<ManagedModel[]>("strata_managed"),
