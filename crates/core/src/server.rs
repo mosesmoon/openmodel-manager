@@ -449,6 +449,13 @@ impl ManagedServer {
             (i.child.take(), i.stop_cmd.take())
         };
         if let Some(mut c) = child {
+            // Strata's launcher is a .cmd that starts Python children; take the whole tree.
+            #[cfg(windows)]
+            if let Some(pid) = c.id() {
+                let mut tk = Command::new("taskkill");
+                tk.args(["/PID", &pid.to_string(), "/T", "/F"]).stdout(Stdio::null()).stderr(Stdio::null()).creation_flags(0x0800_0000);
+                let _ = tk.status().await;
+            }
             let _ = c.kill().await;
         }
         if let Some(sc) = stop_cmd {

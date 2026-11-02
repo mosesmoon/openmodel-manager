@@ -219,8 +219,63 @@ pub async fn install(s: &Settings, cancel: &CancellationToken, job_id: &str, pro
     Ok(i)
 }
 
+/// A model Strata downloads, prepares and serves itself, because it needs
+/// files beyond the GGUF shards (DeepSeek's Engram table and drafter).
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct ManagedModel {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub org: &'static str,
+    pub family: &'static str,
+    pub tags: &'static [&'static str],
+    pub sets: &'static [ManagedSet],
+    pub desc_zh: &'static str,
+    pub desc_en: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct ManagedSet {
+    /// Strata's `--model` name.
+    pub model: &'static str,
+    pub label: &'static str,
+    /// Disk needed, GB, as Strata's docs give it (shards + shared table + drafter).
+    pub disk_gb: f64,
+}
+
+pub const MANAGED: &[ManagedModel] = &[ManagedModel {
+    id: "deepseek-v4.1-flash",
+    name: "DeepSeekV4.1-Flash-1017",
+    org: "DeepSeek · ISTA-DASLab",
+    family: "deepseek41",
+    tags: &["chat", "code", "reasoning"],
+    sets: &[
+        ManagedSet { model: "ist-das-1.75bpw", label: "1.75 bpw (IQ1_M)", disk_gb: 239.0 },
+        ManagedSet { model: "ist-das-2.00bpw", label: "2.00 bpw (IQ2_XXS)", disk_gb: 257.0 },
+        ManagedSet { model: "ist-das-2.25bpw", label: "2.25 bpw (IQ2_XS)", disk_gb: 274.0 },
+    ],
+    desc_zh: "DeepSeek 的大型 MoE，只能用 Strata 跑：除了模型本身，還需要約 111 GB 的 n-gram（Engram）表與 8 GB 的草稿模型，放在 SSD 上邊讀邊算。需要 12 GB 以上 VRAM、至少 46 GB 記憶體（建議 64 GB）和 NVMe SSD。Strata 會自行下載（可續傳、核對 SHA-256）並啟動，預設 8K 上下文。",
+    desc_en: "DeepSeek's large MoE, which runs only on Strata: besides the model it needs a ~111 GB n-gram (Engram) table and an 8 GB drafter, read from the SSD as it generates. Needs 12 GB+ VRAM, at least 46 GB RAM (64 GB recommended) and an NVMe SSD. Strata downloads it (resumable, SHA-256 checked) and starts it; 8K context by default.",
+}];
+
+pub fn find_managed(id: &str) -> Option<&'static ManagedModel> {
+    MANAGED.iter().find(|m| m.id == id)
+}
+
+/// Where Strata puts the files of models it downloads itself.
+pub fn managed_dir(s: &Settings) -> PathBuf {
+    s.models_dir.join("strata")
+}
+
+/// What `strata launch` should serve.
+pub enum Source<'a> {
+    /// GGUF files we downloaded or the user imported.
+    Path(&'a Path),
+    /// A model Strata fetches (when missing) into `data_dir` and serves.
+    Managed { family: &'a str, model: &'a str, data_dir: &'a Path },
+}
+
 pub struct LaunchOptions<'a> {
-    pub model: &'a Path,
+    pub source: Source<'a>,
     pub port: u16,
     pub ctx: Option<u64>,
     pub vision: bool,
@@ -229,11 +284,18 @@ pub struct LaunchOptions<'a> {
 
 /// `strata launch` arguments that serve `model` without screens or questions.
 pub fn launch_args(o: &LaunchOptions) -> Vec<String> {
-    // Strata takes "a folder of shards or one .gguf"; hand it the folder for a split model.
-    let is_shard = o.model.file_name().and_then(|n| n.to_str()).map(|n| regex::Regex::new(r"-\d{5}-of-\d{5}\.gguf$").unwrap().is_match(n)).unwrap_or(false);
-    let path = if is_shard { o.model.parent().unwrap_or(o.model) } else { o.model };
-    let mut a: Vec<String> = ["launch", "--model-path"].map(String::from).to_vec();
-    a.push(path.display().to_string());
+    let mut a: Vec<String> = vec!["launch".into()];
+    match o.source {
+        Source::Path(model) => {
+            // Strata takes "a folder of shards or one .gguf"; hand it the folder for a split model.
+            let is_shard = model.file_name().and_then(|n| n.to_str()).map(|n| regex::Regex::new(r"-\d{5}-of-\d{5}\.gguf$").unwrap().is_match(n)).unwrap_or(false);
+            let path = if is_shard { model.parent().unwrap_or(model) } else { model };
+            a.extend(["--model-path".into(), path.display().to_string()]);
+        }
+        Source::Managed { family, model, data_dir } => {
+            a.extend(["--family".into(), family.into(), "--model".into(), model.into(), "--data-dir".into(), data_dir.display().to_string()]);
+        }
+    }
     a.extend(["--port".into(), o.port.to_string(), "--yes".into(), "--no-tui".into(), "--restart".into()]);
     if let Some(c) = o.ctx {
         a.extend(["--context".into(), c.to_string()]);
@@ -247,6 +309,24 @@ pub fn launch_args(o: &LaunchOptions) -> Vec<String> {
         a.extend(["--access".into(), "local".into()]);
     }
     a
+}
+
+/// `strata launch --plan` for a managed model: what would download and
+/// where it would go on this PC. Changes nothing.
+pub async fn plan_managed(s: &Settings, launcher: &Path, family: &str, model: &str) -> Result<String> {
+    let dir = managed_dir(s);
+    let out = command(s, launcher)
+        .args(["launch", "--plan", "--no-tui", "--family", family, "--model", model, "--data-dir"])
+        .arg(&dir)
+        .output()
+        .await
+        .context("run strata launch --plan")?;
+    let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+    if !out.status.success() {
+        bail!("strata launch --plan failed (exit {:?}):
+{text}", out.status.code());
+    }
+    Ok(text)
 }
 
 pub fn stop_args() -> Vec<String> {
@@ -288,14 +368,25 @@ mod tests {
     #[test]
     fn args_for_split_model_use_folder() {
         let m = Path::new("/m/Qwen3.8-Flash-Next/Q2_0-00001-of-00004.gguf");
-        let a = launch_args(&LaunchOptions { model: m, port: 8081, ctx: Some(65536), vision: false, lan: true });
+        let a = launch_args(&LaunchOptions { source: Source::Path(m), port: 8081, ctx: Some(65536), vision: false, lan: true });
         let i = a.iter().position(|x| x == "--model-path").unwrap();
         assert_eq!(Path::new(&a[i + 1]), Path::new("/m/Qwen3.8-Flash-Next"));
         for w in [["--port", "8081"], ["--context", "65536"], ["--vision", "off"], ["--access", "lan"], ["--api-key-env", KEY_ENV]] {
             assert!(a.windows(2).any(|x| x[0] == w[0] && x[1] == w[1]), "{w:?} in {a:?}");
         }
-        let single = launch_args(&LaunchOptions { model: Path::new("/m/a.gguf"), port: 8080, ctx: None, vision: true, lan: false });
+        let single = launch_args(&LaunchOptions { source: Source::Path(Path::new("/m/a.gguf")), port: 8080, ctx: None, vision: true, lan: false });
         assert!(single.contains(&"/m/a.gguf".to_string()) && single.contains(&"local".to_string()) && !single.contains(&"--vision".to_string()));
+    }
+
+    #[test]
+    fn args_for_managed_model() {
+        let d = Path::new("/models/strata");
+        let a = launch_args(&LaunchOptions { source: Source::Managed { family: "deepseek41", model: "ist-das-2.00bpw", data_dir: d }, port: 8080, ctx: None, vision: true, lan: false });
+        for w in [["--family", "deepseek41"], ["--model", "ist-das-2.00bpw"], ["--port", "8080"]] {
+            assert!(a.windows(2).any(|x| x[0] == w[0] && x[1] == w[1]), "{w:?} in {a:?}");
+        }
+        assert!(!a.contains(&"--model-path".to_string()));
+        assert_eq!(find_managed("deepseek-v4.1-flash").unwrap().sets.len(), 3);
     }
 
     /// Downloads the real Terminal package (~75 MB) and runs its signature
@@ -310,9 +401,12 @@ mod tests {
         assert_eq!(installed(&s), Some(i.clone()));
         let out = command(&s, &i.launcher).args(["launch", "--help"]).output().await.unwrap();
         let help = String::from_utf8_lossy(&out.stdout);
-        for flag in ["--model-path", "--no-tui", "--restart", "--access", "--api-key-env", "--vision", "--context"] {
+        for flag in ["--model-path", "--no-tui", "--restart", "--access", "--api-key-env", "--vision", "--context", "--family", "--data-dir", "--plan"] {
             assert!(help.contains(flag), "strata launch --help lacks {flag}");
         }
+        let s = Settings { models_dir: d.path().join("models"), ..s };
+        let plan = plan_managed(&s, &i.launcher, "deepseek41", "ist-das-2.00bpw").await.unwrap();
+        println!("{plan}");
     }
 
     #[test]

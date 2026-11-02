@@ -47,6 +47,8 @@ export interface CatalogEntry {
   strata: StrataPack | null;
 }
 export interface StrataPack { family: string; repo: string; quants: string[] }
+export interface ManagedSet { model: string; label: string; disk_gb: number }
+export interface ManagedModel { id: string; name: string; org: string; family: string; tags: string[]; sets: ManagedSet[]; description: string; dir: string }
 
 export interface Plan {
   tier: Tier; tier_label: string; ctx: number; gpu_layers: number; n_cpu_moe: number;
@@ -125,6 +127,9 @@ export const api = {
   llmStart: (opts: RunOptions) => invoke<Plan | null>("llm_start", { opts }),
   strataInstall: () => invoke<string>("strata_install"),
   strataRemove: () => invoke<void>("strata_remove"),
+  strataManaged: () => invoke<ManagedModel[]>("strata_managed"),
+  strataPlan: (id: string, set: string) => invoke<string>("strata_plan", { id, set }),
+  strataStartManaged: (id: string, set: string, ctx: number | null) => invoke<void>("strata_start_managed", { id, set, ctx }),
   mediaModels: () => invoke<MediaModel[]>("media_models"),
   mediaDownload: (id: string, quant: string) => invoke<string>("media_download", { id, quant }),
   sdStart: (id: string, quant: string) => invoke<void>("sd_start", { id, quant }),

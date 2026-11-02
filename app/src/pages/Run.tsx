@@ -25,7 +25,8 @@ export default function Run() {
     api.engines().then((e) => setHasStrata(!!e.strata), () => {});
     api.library().then((l) => {
       setModels(l);
-      if (!path && l.length) setPath(l[0].path);
+      // A Strata-managed model is running under a label, not a file path.
+      if (l.length && !l.some((x) => x.path === path)) setPath(l[0].path);
     }, fail);
   }, []);
 
@@ -33,7 +34,7 @@ export default function Run() {
   useEffect(() => setCustom(null), [path]);
 
   useEffect(() => {
-    if (!path) return;
+    if (!path || !models.some((x) => x.path === path)) return;
     const id = setTimeout(() => {
       api.planPreview({ path, ctx, custom_args: custom, vision }).then((p) => {
         setPreview(p);
@@ -43,7 +44,7 @@ export default function Run() {
       }, (e) => { setPreview(null); setPlanErr(String(e)); });
     }, 250);
     return () => clearTimeout(id);
-  }, [path, ctx, vision, custom, hasStrata]);
+  }, [path, ctx, vision, custom, hasStrata, models]);
 
   const logs = useMemo(() => llmEvents.flatMap((e) => (e.type === "log" ? [e.line] : e.type === "note" ? [`* ${e.message}`] : [])), [llmEvents]);
   const progress = [...llmEvents].reverse().find((e) => e.type === "progress");
@@ -113,7 +114,7 @@ export default function Run() {
           {llm && (
             <div className="small">
               <span className={"dot " + llm.state} />{t(("server." + llm.state) as Key)}
-              {llm.engine === "strata" && <> · Strata</>}
+              {llm.engine === "strata" && <> · Strata{llm.model && !models.some((x) => x.path === llm.model) ? ` · ${llm.model}` : ""}</>}
               {llm.state === "ready" && <> · <span className="mono">http://127.0.0.1:{llm.port}/v1</span></>}
               {llm.safe_level > 0 && <> · {t("run.safe")} {llm.safe_level}</>}
               {llm.gpu_layers && <> · {t("run.offloaded")} {llm.gpu_layers[0]}/{llm.gpu_layers[1]}</>}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import { api, CatalogEntry, gb, HfModel, LocalModel, MediaModel, RepoListing } from "../api";
+import { api, CatalogEntry, gb, HfModel, LocalModel, ManagedModel, MediaModel, RepoListing } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 
@@ -37,11 +37,19 @@ function Recommended() {
   const [vision, setVision] = useState(true);
   const [tags, setTags] = useState<string[]>([]);
   const [strataOnly, setStrataOnly] = useState(false);
+  const [managed, setManaged] = useState<ManagedModel[]>([]);
+  const [hasStrata, setHasStrata] = useState(false);
   const load = () => api.catalog().then(setList, fail);
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    api.strataManaged().then(setManaged, () => {});
+    api.engines().then((e) => setHasStrata(!!e.strata), () => {});
+  }, []);
   if (!list) return <p className="muted">{t("common.loading")}</p>;
   const toggle = (x: string) => setTags(tags.includes(x) ? tags.filter((y) => y !== x) : [...tags, x]);
   const shown = list.filter((m) => tags.every((x) => m.tags.includes(x)) && (!strataOnly || !!m.strata));
+  const shownManaged = managed.filter((m) => tags.every((x) => m.tags.includes(x)));
+  const count = (x: string) => list.filter((m) => m.tags.includes(x)).length + managed.filter((m) => m.tags.includes(x)).length;
   return (
     <>
       <div className="chips" style={{ marginBottom: 10 }}>
@@ -49,18 +57,18 @@ function Recommended() {
         <button className={"chip" + (tags.length === 0 && !strataOnly ? " on" : "")} onClick={() => { setTags([]); setStrataOnly(false); }}>{t("models.filter_all")}</button>
         {TAGS.map((x) => (
           <button key={x} className={"chip" + (tags.includes(x) ? " on" : "")} onClick={() => toggle(x)}>
-            {tagLabel(t, x)} <span className="muted">{list.filter((m) => m.tags.includes(x)).length}</span>
+            {tagLabel(t, x)} <span className="muted">{count(x)}</span>
           </button>
         ))}
         <button className={"chip" + (strataOnly ? " on" : "")} onClick={() => setStrataOnly(!strataOnly)} title={t("models.strata_tip")}>
-          Strata <span className="muted">{list.filter((m) => m.strata).length}</span>
+          Strata <span className="muted">{list.filter((m) => m.strata).length + managed.length}</span>
         </button>
       </div>
       <label className="check" style={{ marginBottom: 12 }}>
         <input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />
         {t("models.with_vision")}
       </label>
-      {shown.length === 0 && <p className="muted">{t("models.filter_none")}</p>}
+      {shown.length + shownManaged.length === 0 && <p className="muted">{t("models.filter_none")}</p>}
       <div className="grid">
         {shown.map((m) => {
           const q = choice[m.id] ?? m.recommended ?? m.quants[0];
@@ -124,8 +132,59 @@ function Recommended() {
             </div>
           );
         })}
+        {shownManaged.map((m) => <ManagedCard key={m.id} m={m} hasStrata={hasStrata} />)}
       </div>
     </>
+  );
+}
+
+function ManagedCard({ m, hasStrata }: { m: ManagedModel; hasStrata: boolean }) {
+  const { t } = useI18n();
+  const { fail, go } = useApp();
+  const [set, setSet] = useState(m.sets[1]?.model ?? m.sets[0].model);
+  const [plan, setPlan] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const cur = m.sets.find((x) => x.model === set)!;
+  const preview = () => {
+    setBusy(true);
+    setPlan(null);
+    api.strataPlan(m.id, set).then(setPlan, fail).finally(() => setBusy(false));
+  };
+  const start = () => {
+    if (!confirm(t("models.strata_confirm").replace("{gb}", String(cur.disk_gb)))) return;
+    api.strataStartManaged(m.id, set, null).catch(fail);
+    go("run");
+  };
+  return (
+    <div className="card stack">
+      <div>
+        <div className="row spread">
+          <h3 style={{ margin: 0 }}>{m.name}</h3>
+          <span className="pill strata" title={t("models.strata_tip")}>{t("models.strata_only")}</span>
+        </div>
+        <div className="muted small">{m.org}</div>
+      </div>
+      <div className="small">{m.description}</div>
+      <div className="row">{m.tags.map((x) => <span key={x} className="pill">{tagLabel(t, x)}</span>)}</div>
+      <div className="row">
+        <select value={set} onChange={(e) => { setSet(e.target.value); setPlan(null); }}>
+          {m.sets.map((x) => <option key={x.model} value={x.model}>{x.label} · {x.disk_gb} GB</option>)}
+        </select>
+      </div>
+      <div className="muted small ellipsis" title={m.dir}>{t("models.strata_dir")}: <span className="mono">{m.dir}</span></div>
+      {hasStrata ? (
+        <div className="row">
+          <button className="btn" disabled={busy} onClick={preview}>{busy ? t("common.loading") : t("models.strata_preview")}</button>
+          <button className="btn primary" onClick={start}>{t("models.strata_start")}</button>
+        </div>
+      ) : (
+        <div className="row">
+          <span className="muted small">{t("models.strata_need")}</span>
+          <button className="btn sm" onClick={() => go("settings")}>{t("nav.settings")}</button>
+        </div>
+      )}
+      {plan && <pre className="log" style={{ maxHeight: 260 }}>{plan}</pre>}
+    </div>
   );
 }
 

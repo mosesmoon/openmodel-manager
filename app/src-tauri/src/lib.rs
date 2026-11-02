@@ -498,7 +498,8 @@ async fn server_stop(state: State<'_, AppState>, which: String) -> Res<()> {
 #[tauri::command]
 async fn llm_start(state: State<'_, AppState>, opts: RunOptions) -> Res<Option<Plan>> {
     if opts.engine.as_deref() == Some("strata") {
-        return strata_start(&state, &opts).await.map(|_| None);
+        let label = opts.path.clone();
+        return strata_start(&state, strata::Source::Path(&opts.path), &label, opts.ctx, opts.vision).await.map(|_| None);
     }
     let mut s = state.settings();
     let eng = pick_engine(&s, EngineKind::Llama)?;
@@ -520,7 +521,7 @@ async fn llm_start(state: State<'_, AppState>, opts: RunOptions) -> Res<Option<P
 
 /// Serve the model through Strata's launcher. Strata chooses its own GPU /
 /// RAM placement, so no plan is made here.
-async fn strata_start(state: &AppState, opts: &RunOptions) -> Res<()> {
+async fn strata_start(state: &AppState, source: strata::Source<'_>, label: &Path, ctx: Option<u64>, vision: bool) -> Res<()> {
     let s = state.settings();
     let inst = strata::installed(&s).ok_or("Strata is not installed (Settings → Engines)")?;
     // Free whatever holds the port before choosing one.
@@ -531,9 +532,50 @@ async fn strata_start(state: &AppState, opts: &RunOptions) -> Res<()> {
     if let Some(k) = &key {
         env.push((strata::KEY_ENV.into(), k.clone()));
     }
-    let args = strata::launch_args(&strata::LaunchOptions { model: &opts.path, port, ctx: opts.ctx, vision: opts.vision, lan: s.lan_access });
+    let args = strata::launch_args(&strata::LaunchOptions { source, port, ctx, vision, lan: s.lan_access });
     std::fs::create_dir_all(strata::data_dir(&s)).map_err(err)?;
-    state.llm.start_strata(&inst.launcher, args, env, port, &opts.path, key).await.map_err(errs)
+    state.llm.start_strata(&inst.launcher, args, env, port, label, key).await.map_err(errs)
+}
+
+#[derive(Serialize)]
+struct ManagedEntry {
+    #[serde(flatten)]
+    model: &'static strata::ManagedModel,
+    description: &'static str,
+    /// Where Strata puts the files.
+    dir: PathBuf,
+}
+
+#[tauri::command]
+fn strata_managed(state: State<AppState>) -> Vec<ManagedEntry> {
+    let s = state.settings();
+    let zh = s.language.starts_with("zh");
+    strata::MANAGED.iter().map(|m| ManagedEntry { model: m, description: if zh { m.desc_zh } else { m.desc_en }, dir: strata::managed_dir(&s) }).collect()
+}
+
+fn managed_set(id: &str, set: &str) -> Res<(&'static strata::ManagedModel, &'static strata::ManagedSet)> {
+    let m = strata::find_managed(id).ok_or("unknown model")?;
+    let st = m.sets.iter().find(|x| x.model == set).ok_or("unknown model set")?;
+    Ok((m, st))
+}
+
+#[tauri::command]
+async fn strata_plan(state: State<'_, AppState>, id: String, set: String) -> Res<String> {
+    let (m, st) = managed_set(&id, &set)?;
+    let s = state.settings();
+    let inst = strata::installed(&s).ok_or("Strata is not installed (Settings → Engines)")?;
+    strata::plan_managed(&s, &inst.launcher, m.family, st.model).await.map_err(errs)
+}
+
+/// Download (when missing) and serve a Strata-managed model. The first start
+/// can take hours; the launcher's output shows on the Run page.
+#[tauri::command]
+async fn strata_start_managed(state: State<'_, AppState>, id: String, set: String, ctx: Option<u64>) -> Res<()> {
+    let (m, st) = managed_set(&id, &set)?;
+    let dir = strata::managed_dir(&state.settings());
+    std::fs::create_dir_all(&dir).map_err(err)?;
+    let label = PathBuf::from(format!("{} {}", m.name, st.label));
+    strata_start(&state, strata::Source::Managed { family: m.family, model: st.model, data_dir: &dir }, &label, ctx, true).await
 }
 
 #[derive(Serialize)]
@@ -798,6 +840,9 @@ pub fn run() {
             engine_remove,
             strata_install,
             strata_remove,
+            strata_managed,
+            strata_plan,
+            strata_start_managed,
             server_status,
             server_logs,
             server_stop,
