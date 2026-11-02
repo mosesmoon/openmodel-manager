@@ -449,6 +449,13 @@ impl ManagedServer {
             (i.child.take(), i.stop_cmd.take())
         };
         if let Some(mut c) = child {
+            // Ask politely first: vLLM's engine runs in child processes that
+            // only exit with their parent on a graceful shutdown.
+            #[cfg(unix)]
+            if let Some(pid) = c.id() {
+                let _ = Command::new("kill").args(["-TERM", &pid.to_string()]).status().await;
+                let _ = tokio::time::timeout(Duration::from_secs(10), c.wait()).await;
+            }
             // Strata's launcher is a .cmd that starts Python children; take the whole tree.
             #[cfg(windows)]
             if let Some(pid) = c.id() {
@@ -523,6 +530,21 @@ impl ManagedServer {
             self.emit(ServerEvent::Progress(estimate_progress(stage, t0.elapsed(), 0, 600.0)));
             tokio::time::sleep(Duration::from_millis(1000)).await;
         }
+    }
+
+    /// Start a Python engine (vLLM / MLX) from its venv. `model` is the
+    /// Hugging Face id or folder it serves; the first start may download it,
+    /// so readiness is awaited for up to an hour.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn start_python(&self, engine: &str, python: &Path, args: Vec<String>, env: &[(String, String)], host: &str, wanted_port: u16, model: &str) -> Result<u16> {
+        self.stop().await;
+        let bind = if host == "0.0.0.0" { "0.0.0.0" } else { "127.0.0.1" };
+        let port = find_free_port(bind, wanted_port).context("no free port")?;
+        let mut args = args;
+        set_arg(&mut args, "--port", &port.to_string());
+        self.launch(python, &args, env, port, Some(PathBuf::from(model)), 0, engine)?;
+        self.wait_ready("/v1/models", Duration::from_secs(3600), 0, 600.0).await?;
+        Ok(port)
     }
 
     fn fail_start(&self, code: Option<i32>) {

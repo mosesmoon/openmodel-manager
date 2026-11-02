@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { api, Backend, EngineKind, Engines, NamedEndpoint, Settings } from "../api";
+import { api, Backend, EngineKind, Engines, NamedEndpoint, PyEngineInfo, Settings } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 import { findProvider, PROVIDERS } from "../providers";
@@ -170,7 +170,62 @@ function EnginesCard({ backend, setBackend }: { backend: Backend | null; setBack
           </div>
         )}
       </div>
+      <PyEngines />
     </div>
+  );
+}
+
+/** vLLM and MLX: installed and updated from PyPI; grayed out where they cannot run. */
+function PyEngines() {
+  const { t } = useI18n();
+  const { track, fail } = useApp();
+  const [list, setList] = useState<PyEngineInfo[]>([]);
+  const [latest, setLatest] = useState<Record<string, string>>({});
+  const load = () => api.pyEngines().then(setList, fail);
+  useEffect(() => { load(); }, []);
+  const check = (e: PyEngineInfo) => api.pyEngineLatest(e.kind).then((v) => setLatest((l) => ({ ...l, [e.kind]: v })), fail);
+  const newer = (a: string, b: string) => {
+    const p = (v: string) => v.split(/[.+-]/).map((x) => parseInt(x, 10) || 0);
+    const [x, y] = [p(a), p(b)];
+    for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+    return false;
+  };
+  return (
+    <>
+      {list.map((e) => {
+        const off = !!e.unsupported;
+        const lv = latest[e.kind];
+        return (
+          <div key={e.kind} className={"stack" + (off ? " disabled" : "")} style={{ gap: 6 }} title={off ? t(e.unsupported === "linux" ? "engine.unsupported_linux" : "engine.unsupported_mac") : undefined}>
+            <div className="row">
+              <b className="grow">{e.name}</b>
+              {off && <span className="pill">{t(e.unsupported === "linux" ? "engine.unsupported_linux" : "engine.unsupported_mac")}</span>}
+              {!e.installed && <button className="btn sm primary" disabled={off} onClick={() => api.pyEngineInstall(e.kind).then((id) => track(id, e.name, () => load()), fail)}>{t("settings.install")}</button>}
+              {e.installed && <button className="btn sm" disabled={off} onClick={() => check(e)}>{t("engine.check_update")}</button>}
+              {e.installed && lv && newer(lv, e.installed.version) && (
+                <button className="btn sm primary" disabled={off} onClick={() => api.pyEngineInstall(e.kind).then((id) => track(id, `${e.name} ${lv}`, () => { load(); }), fail)}>{t("engine.update")} → {lv}</button>
+              )}
+            </div>
+            <div className="muted small">{t(e.kind === "vllm" ? "engine.vllm_desc" : "engine.mlx_desc")} {t("engine.py_install_note")}</div>
+            {!e.installed && !off && <div className="muted small">{t("common.none")}</div>}
+            {!e.installed && lv === undefined && (
+              <div className="row small"><button className="btn sm" onClick={() => check(e)}>{t("engine.check_update")}</button></div>
+            )}
+            {!e.installed && lv && <div className="muted small">{t("engine.latest")}: {e.package} {lv}</div>}
+            {e.installed && (
+              <div className="row small">
+                <span className="pill">{e.package}</span>
+                <span>{e.installed.version}</span>
+                {lv && !newer(lv, e.installed.version) && <span className="muted">· {t("engine.up_to_date")}</span>}
+                {lv && newer(lv, e.installed.version) && <span className="muted">· {t("engine.new_version")} {lv}</span>}
+                <span className="muted mono ellipsis grow" title={e.installed.python}>{e.installed.dir}</span>
+                <button className="btn sm danger" onClick={() => api.pyEngineRemove(e.kind).then(load, fail)}>{t("common.remove")}</button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </>
   );
 }
 

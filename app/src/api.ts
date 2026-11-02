@@ -60,7 +60,10 @@ export interface Plan {
 }
 export interface ModelSummary { arch: string; name: string | null; quant: string; block_count: number; context_length: number; expert_count: number; expert_used_count: number; total_bytes: number }
 export interface PlanPreview { plan: Plan; summary: ModelSummary; mmproj: string | null; saved_custom_args: string; strata_supported: boolean }
-export type LlmEngine = "llama" | "strata";
+export type LlmEngine = "llama" | "strata" | "vllm" | "mlx";
+export type PyKind = "vllm" | "mlx";
+export interface PyInstall { kind: PyKind; version: string; python: string; dir: string }
+export interface PyEngineInfo { kind: PyKind; name: string; package: string; unsupported: "macos-arm64" | "linux" | null; installed: PyInstall | null }
 export interface RunOptions { path: string; ctx: number | null; custom_args: string | null; vision: boolean; engine?: LlmEngine }
 
 export interface LocalModel { name: string; path: string; files: string[]; size_bytes: number; quant: string | null; mmproj: string | null; external: boolean; strata?: boolean }
@@ -127,6 +130,11 @@ export const api = {
   serverLogs: (which: "llm" | "sd", last = 400) => invoke<string[]>("server_logs", { which, last }),
   serverStop: (which: "llm" | "sd") => invoke<void>("server_stop", { which }),
   llmStart: (opts: RunOptions) => invoke<Plan | null>("llm_start", { opts }),
+  pyEngines: () => invoke<PyEngineInfo[]>("py_engines"),
+  pyEngineInstall: (kind: PyKind) => invoke<string>("py_engine_install", { kind }),
+  pyEngineLatest: (kind: PyKind) => invoke<string>("py_engine_latest", { kind }),
+  pyEngineRemove: (kind: PyKind) => invoke<void>("py_engine_remove", { kind }),
+  pyEngineStart: (kind: PyKind, model: string, ctx: number | null) => invoke<number>("py_engine_start", { kind, model, ctx }),
   openFolder: (path: string) => invoke<void>("open_folder", { path }),
   strataInstall: () => invoke<string>("strata_install"),
   strataRemove: () => invoke<void>("strata_remove"),

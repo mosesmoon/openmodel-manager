@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, gb, LlmEngine, LocalModel, PlanPreview } from "../api";
+import { api, gb, LlmEngine, LocalModel, PlanPreview, PyEngineInfo, PyKind } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 import { SplitBar } from "./Models";
@@ -19,10 +19,13 @@ export default function Run() {
   const [starting, setStarting] = useState(false);
   const [engine, setEngine] = useState<LlmEngine>("llama");
   const [hasStrata, setHasStrata] = useState(false);
+  const [py, setPy] = useState<PyEngineInfo[]>([]);
+  const [hfModel, setHfModel] = useState("");
   const logRef = useRef<HTMLPreElement>(null);
 
   useEffect(() => {
     api.engines().then((e) => setHasStrata(!!e.strata), () => {});
+    api.pyEngines().then(setPy, () => {});
     api.library().then((l) => {
       setModels(l);
       // A Strata-managed model is running under a label, not a file path.
@@ -40,7 +43,7 @@ export default function Run() {
         setPreview(p);
         setPlanErr(null);
         if (custom === null) setCustom(p.saved_custom_args);
-        if (custom === null) setEngine(p.strata_supported && hasStrata ? "strata" : "llama");
+        if (custom === null) setEngine((cur) => (cur === "vllm" || cur === "mlx" ? cur : p.strata_supported && hasStrata ? "strata" : "llama"));
       }, (e) => { setPreview(null); setPlanErr(String(e)); });
     }, 250);
     return () => clearTimeout(id);
@@ -53,14 +56,26 @@ export default function Run() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [logs.length]);
 
+  const pyMode = engine === "vllm" || engine === "mlx";
   const start = () => {
     setStarting(true);
+    if (pyMode) {
+      api.pyEngineStart(engine as PyKind, hfModel, engine === "vllm" ? ctx : null).then(() => {}, fail).finally(() => setStarting(false));
+      return;
+    }
     api.llmStart({ path, ctx, custom_args: custom ?? "", vision, engine }).then(() => {}, fail).finally(() => setStarting(false));
   };
   const running = llm?.state === "ready" || llm?.state === "starting" || starting;
   const strata = engine === "strata";
-  const plan = strata ? undefined : preview?.plan;
-  const mine = llm?.model && llm.model === path;
+  const plan = strata || pyMode ? undefined : preview?.plan;
+  const mine = llm?.model && llm.model === (pyMode ? hfModel.trim() : path);
+  const pyInfo = (k: PyKind) => py.find((x) => x.kind === k);
+  const pyLabel = (k: PyKind) => {
+    const i = pyInfo(k);
+    if (!i) return "";
+    if (i.unsupported) return ` — ${t(i.unsupported === "linux" ? "engine.unsupported_linux" : "engine.unsupported_mac")}`;
+    return i.installed ? "" : ` — ${t("run.py_missing")}`;
+  };
 
   return (
     <>
@@ -68,34 +83,43 @@ export default function Run() {
       <div className="two">
         <div className="card stack">
           <label className="field">
-            <span>{t("run.pick")}</span>
-            <select value={path} onChange={(e) => setPath(e.target.value)}>
-              {models.length === 0 && <option value="">{t("models.empty")}</option>}
-              {models.map((m) => <option key={m.path} value={m.path}>{m.name} {m.quant ? `(${m.quant})` : ""}</option>)}
+            <span>{t("run.engine")}</span>
+            <select value={engine} onChange={(e) => setEngine(e.target.value as LlmEngine)}>
+              <option value="llama">llama.cpp</option>
+              <option value="strata" disabled={!hasStrata}>Strata{hasStrata ? "" : ` — ${t("run.strata_missing")}`}</option>
+              {(["vllm", "mlx"] as PyKind[]).map((k) => (
+                <option key={k} value={k} disabled={!pyInfo(k)?.installed || !!pyInfo(k)?.unsupported}>{pyInfo(k)?.name ?? k}{pyLabel(k)}</option>
+              ))}
             </select>
           </label>
-          {(hasStrata || preview?.strata_supported) && (
+          {pyMode ? (
             <label className="field">
-              <span>{t("run.engine")}</span>
-              <select value={engine} onChange={(e) => setEngine(e.target.value as LlmEngine)}>
-                <option value="llama">llama.cpp</option>
-                <option value="strata" disabled={!hasStrata}>Strata{hasStrata ? "" : ` — ${t("run.strata_missing")}`}</option>
+              <span>{t("run.hf_model")}</span>
+              <input type="text" className="mono" value={hfModel} placeholder={engine === "vllm" ? "Qwen/Qwen3-8B" : "mlx-community/Qwen3-8B-4bit"} onChange={(e) => setHfModel(e.target.value)} />
+              <span className="small muted">{t(engine === "vllm" ? "run.hf_hint_vllm" : "run.hf_hint_mlx")}</span>
+            </label>
+          ) : (
+            <label className="field">
+              <span>{t("run.pick")}</span>
+              <select value={path} onChange={(e) => setPath(e.target.value)}>
+                {models.length === 0 && <option value="">{t("models.empty")}</option>}
+                {models.map((m) => <option key={m.path} value={m.path}>{m.name} {m.quant ? `(${m.quant})` : ""}</option>)}
               </select>
             </label>
           )}
           {strata && <div className="note">{t("run.strata_note")}</div>}
           {strata && preview && !preview.strata_supported && <div className="note bad">{t("run.strata_unsupported")}</div>}
-          <label className="field">
+          {engine !== "mlx" && <label className="field">
             <span>{t("run.ctx")}</span>
             <select value={ctx ?? ""} onChange={(e) => setCtx(e.target.value ? Number(e.target.value) : null)}>
               <option value="">{t("common.auto")}{plan && ctx === null ? ` (${plan.ctx / 1024}K)` : ""}</option>
-              {CTX_CHOICES.filter((c) => !preview || c <= Math.max(preview.summary.context_length, 4096)).map((c) => <option key={c} value={c}>{c / 1024}K</option>)}
+              {CTX_CHOICES.filter((c) => pyMode || !preview || c <= Math.max(preview.summary.context_length, 4096)).map((c) => <option key={c} value={c}>{c / 1024}K</option>)}
             </select>
-          </label>
-          {preview?.mmproj && (
+          </label>}
+          {!pyMode && preview?.mmproj && (
             <label className="check"><input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />{t("run.vision")}</label>
           )}
-          {!strata && (
+          {!strata && !pyMode && (
             <label className="field">
               <span>{t("run.custom")}</span>
               <input type="text" className="mono" value={custom ?? ""} placeholder="-ngl 99 --temp 0.7" onChange={(e) => setCustom(e.target.value)} />
@@ -104,7 +128,7 @@ export default function Run() {
           )}
           <div className="row">
             {!running || !mine ? (
-              <button className="btn primary" disabled={!path || (!!planErr && !strata) || starting} onClick={start}>{t("common.start")}</button>
+              <button className="btn primary" disabled={(pyMode ? !hfModel.trim() : !path || (!!planErr && !strata)) || starting} onClick={start}>{t("common.start")}</button>
             ) : null}
             {(llm?.state === "ready" || llm?.state === "starting") && (
               <button className="btn" onClick={() => api.serverStop("llm").catch(fail)}>{t("common.stop")}</button>
@@ -115,12 +139,13 @@ export default function Run() {
             <div className="small">
               <span className={"dot " + llm.state} />{t(("server." + llm.state) as Key)}
               {llm.engine === "strata" && <> · Strata{llm.model && !models.some((x) => x.path === llm.model) ? ` · ${llm.model}` : ""}</>}
+              {(llm.engine === "vllm" || llm.engine === "mlx") && <> · {llm.engine === "vllm" ? "vLLM" : "MLX"} · {llm.model}</>}
               {llm.state === "ready" && <> · <span className="mono">http://127.0.0.1:{llm.port}/v1</span></>}
               {llm.safe_level > 0 && <> · {t("run.safe")} {llm.safe_level}</>}
               {llm.gpu_layers && <> · {t("run.offloaded")} {llm.gpu_layers[0]}/{llm.gpu_layers[1]}</>}
             </div>
           )}
-          {llm?.state === "starting" && llm.engine !== "strata" && progress?.type === "progress" && (
+          {llm?.state === "starting" && llm.engine === "llama" && progress?.type === "progress" && (
             <div className="stack" style={{ gap: 4 }}>
               <div className="bar"><div style={{ width: `${progress.fraction * 100}%` }} /></div>
               <div className="muted small">{progress.stage} · {progress.elapsed_secs.toFixed(0)}s</div>

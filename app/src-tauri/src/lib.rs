@@ -19,6 +19,7 @@ use openmodel_core::{
     library::{self, LocalModel},
     llm::{self, ChatEvent, Endpoint},
     server::{find_free_port, ManagedServer, ServerStatus},
+    pyengine::{self, PyInstall, PyKind},
     strata::{self, StrataInstall},
     tiering::{self, Machine, ModelShape, Plan, PlanOptions, Tier},
     tools::{ApprovalGate, ChatToolbox, Decision, CHAT_MAX_ROUNDS},
@@ -412,6 +413,80 @@ async fn engines(state: State<'_, AppState>) -> Res<Engines> {
     })
 }
 
+#[derive(Serialize)]
+struct PyEngineInfo {
+    kind: PyKind,
+    name: &'static str,
+    package: &'static str,
+    /// Why it cannot run here ("macos-arm64" / "linux"), None when it can.
+    unsupported: Option<&'static str>,
+    installed: Option<PyInstall>,
+}
+
+#[tauri::command]
+fn py_engines(state: State<AppState>) -> Vec<PyEngineInfo> {
+    let s = state.settings();
+    PyKind::ALL
+        .iter()
+        .map(|k| PyEngineInfo {
+            kind: *k,
+            name: k.name(),
+            package: k.package(),
+            unsupported: k.unsupported_reason(std::env::consts::OS, std::env::consts::ARCH),
+            installed: pyengine::installed(&s, *k),
+        })
+        .collect()
+}
+
+/// Install the latest release, or upgrade the installed one.
+#[tauri::command]
+fn py_engine_install(app: AppHandle, state: State<AppState>, kind: PyKind) -> Res<String> {
+    if !kind.supported_here() {
+        return Err(format!("{} does not run on this system", kind.name()));
+    }
+    let s = state.settings();
+    Ok(spawn_job(&app, &state, "engine", move |cancel, progress, jid| async move {
+        let i = pyengine::install(&s, kind, &cancel, &jid, &progress).await?;
+        Ok(vec![i.version])
+    }))
+}
+
+#[tauri::command]
+async fn py_engine_latest(kind: PyKind) -> Res<String> {
+    pyengine::latest_version(kind).await.map_err(errs)
+}
+
+#[tauri::command]
+async fn py_engine_remove(state: State<'_, AppState>, kind: PyKind) -> Res<()> {
+    let i = pyengine::installed(&state.settings(), kind).ok_or("not installed")?;
+    let tag = match kind {
+        PyKind::Vllm => "vllm",
+        PyKind::Mlx => "mlx",
+    };
+    if state.llm.status().engine == tag {
+        state.llm.stop().await;
+    }
+    pyengine::remove(&i).map_err(errs)
+}
+
+/// Serve a Hugging Face model (id or local folder) with vLLM or MLX.
+#[tauri::command]
+async fn py_engine_start(state: State<'_, AppState>, kind: PyKind, model: String, ctx: Option<u64>) -> Res<u16> {
+    let s = state.settings();
+    let i = pyengine::installed(&s, kind).ok_or("engine not installed (Settings → Engines)")?;
+    let model = model.trim().to_string();
+    if model.is_empty() {
+        return Err("enter a Hugging Face model id or a folder".into());
+    }
+    let host = s.listen_host();
+    let args = pyengine::serve_args(kind, &pyengine::ServeOptions { model: &model, host, port: s.server_port, ctx });
+    let tag = match kind {
+        PyKind::Vllm => "vllm",
+        PyKind::Mlx => "mlx",
+    };
+    state.llm.start_python(tag, &i.python, args, &pyengine::serve_env(&s), host, s.server_port, &model).await.map_err(errs)
+}
+
 /// Open a folder in the system file manager. Only directories: the webview
 /// has no general open-path permission, so it cannot launch programs.
 #[tauri::command]
@@ -708,7 +783,9 @@ fn resolve_endpoint(state: &AppState, ep: Option<Endpoint>) -> Res<Endpoint> {
             if st.state != openmodel_core::server::ServerState::Ready {
                 return Err("no local model is running (Run page)".into());
             }
-            Ok(Endpoint { base_url: format!("{}/v1", state.llm.base_url()), api_key: st.api_key, ..Default::default() })
+            // vLLM and MLX answer to the name of the model they serve.
+            let model = if st.engine == "vllm" || st.engine == "mlx" { st.model.map(|m| m.display().to_string()).unwrap_or_default() } else { String::new() };
+            Ok(Endpoint { base_url: format!("{}/v1", state.llm.base_url()), api_key: st.api_key, model, ..Default::default() })
         }
     }
 }
@@ -852,6 +929,11 @@ pub fn run() {
             engine_import,
             engine_remove,
             open_folder,
+            py_engines,
+            py_engine_install,
+            py_engine_latest,
+            py_engine_remove,
+            py_engine_start,
             strata_install,
             strata_remove,
             strata_managed,

@@ -14,6 +14,7 @@
 | `hf` | 搜尋、檔案列表（分頁）、量化分組（含分卷）、mmproj 偵測、鏡像與 token | 3 |
 | `download` | `.part` 續傳（Range）、取消、重試（404/403 不重試）、多檔進度與速度 | 3 |
 | `engine` | GitHub release 資產挑選（llama.cpp 與 sd.cpp 命名、CUDA 版本依驅動（含新版 `CUDA UMD Version` 標頭）、Windows cudart）、掃描最近 15 個 release 取第一個有對應檔案的版本（llama.cpp 的 latest 不含 build）、下載解壓（防 zip-slip）、匯入 zip / 既有資料夾 | 7 |
+| `pyengine` | vLLM（Linux）與 MLX／mlx-lm（macOS Apple Silicon）：用 uv（從 GitHub release 下載並核對 SHA-256）建 Python 3.12 venv、從 PyPI 安裝與 `--upgrade` 更新；PyPI 查最新版；`python -m vllm.entrypoints.openai.api_server` / `python -m mlx_lm.server` 啟動，`/v1/models` 判斷就緒，模型下載到 `<models>/hf`；不支援的系統在介面上反灰。已實測 uv 下載與建 venv（Windows），vLLM／MLX 本身未在其平台實測 | 3（+1 個 `--ignored`） |
 | `strata` | 第三方引擎 [Strata](https://github.com/Niko1221/Strata)（MIT）：安裝其 Terminal 套件（核對 install-manifest 的 SHA-256、跑 `strata update --check` 驗簽章），資料放在 `<engines>/strata/data`（`STRATA_DATA_DIR`）；用 `strata launch --model-path … --no-tui --restart` 啟動、`/health` 判斷就緒、`strata launch --stop` 停止；LAN 模式自動產生 API key。只呼叫它的程式，不含它的程式碼 | 4（+1 個 `--ignored` 實機安裝測試） |
 | `server` | 啟動 / 停止、log 擷取與載入階段解析、`/health`、port 自動往後找、崩潰原因分類、相容模式自動重試 | 5 |
 | `diffusion` | 7 個圖片 / 影片模型清單（Z-Image、FLUX.2 klein、FLUX.1 schnell、Qwen-Image、Qwen-Image-Edit、Wan2.2 TI2V 5B、Wan2.2 I2V A14B）、sd-server 參數、txt2img / img2img / 影片 job API、尺寸與幀數 | 5 |
