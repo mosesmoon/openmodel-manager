@@ -7,7 +7,7 @@ This file records the changes in each version, loosely following [Keep a Changel
 > Beta 版的程式內版本號仍是 0.1.0，安裝檔檔名也是 `0.1.0`，正式發行 0.1.1 時才會更新。
 > Beta builds still carry version 0.1.0 inside the app and in the installer file names; it changes at the 0.1.1 release.
 
-## [Unreleased]
+## [0.1.1-beta.3] - 2026-11-02
 
 ### 新增
 - Windows MSI 分成繁體中文（`zh-TW`）和英文（`en-US`）兩個，安裝畫面和程式第一次開啟的語言都跟著安裝檔。用另一種語言的 MSI 重裝，介面也會跟著換。
@@ -115,7 +115,7 @@ Summary in English:
 - **Packaging**: Windows MSI and portable zip, Linux AppImage/deb/Flatpak, macOS DMG.
 - **Docs**: README in Traditional Chinese and English, with screenshots of every page.
 
-[Unreleased]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.2...main
+[0.1.1-beta.3]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.2...v0.1.1-beta.3
 [0.1.1-beta.2]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.1...v0.1.1-beta.2
 [0.1.1-beta.1]: https://github.com/mosesmoon/openmodel-manager/releases/tag/v0.1.1-beta.1
 [0.1.0]: https://github.com/mosesmoon/openmodel-manager/tree/d71c8d1
