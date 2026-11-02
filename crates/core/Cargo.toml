@@ -16,7 +16,7 @@ futures-util.workspace = true
 reqwest.workspace = true
 tracing.workspace = true
 sysinfo = "0.33"
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 flate2 = "1"
 tar = "0.4"
 globset = "0.4"

@@ -234,7 +234,7 @@ pub fn extract_archive(archive: &Path, dest: &Path) -> Result<()> {
         let mut z = zip::ZipArchive::new(f)?;
         for i in 0..z.len() {
             let mut e = z.by_index(i)?;
-            let Some(rel) = e.enclosed_name() else { bail!("unsafe path in archive: {}", e.name()) };
+            let Some(rel) = e.enclosed_name() else { bail!("unsafe path in archive: {}", e.name().unwrap_or_default()) };
             let out = dest.join(rel);
             if e.is_dir() {
                 std::fs::create_dir_all(&out)?;
@@ -248,7 +248,8 @@ pub fn extract_archive(archive: &Path, dest: &Path) -> Result<()> {
             #[cfg(unix)]
             if let Some(mode) = e.unix_mode() {
                 use std::os::unix::fs::PermissionsExt;
-                std::fs::set_permissions(&out, std::fs::Permissions::from_mode(mode))?;
+                // Read/write/execute only: never setuid, setgid or sticky from an archive.
+                std::fs::set_permissions(&out, std::fs::Permissions::from_mode(mode & 0o777))?;
             }
         }
     } else if name.ends_with(".tar.gz") || name.ends_with(".tgz") {

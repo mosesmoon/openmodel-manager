@@ -2,6 +2,8 @@
 
 [繁體中文](README.md) | **English**
 
+[![CI](https://github.com/mosesmoon/openmodel-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/mosesmoon/openmodel-manager/actions/workflows/ci.yml) [![Security](https://github.com/mosesmoon/openmodel-manager/actions/workflows/security.yml/badge.svg)](https://github.com/mosesmoon/openmodel-manager/actions/workflows/security.yml)
+
 An open-source, cross-platform (Windows / Linux / macOS) manager for local AI models. It detects your hardware and plans how a model splits across GPU, RAM and disk. It then installs inference engines, downloads models from Hugging Face and starts an OpenAI-compatible local server. Chat, an agent, and AI image and video generation are built in.
 
 ![Overview](screenshots/01-概覽.png)
@@ -92,6 +94,26 @@ The menu can sit on the left, right, top or bottom (Settings → General), and t
 | ![Models](screenshots/02-模型-推薦.png) | ![Run](screenshots/06-執行.png) |
 | ![Chat](screenshots/07-對話.png) | ![Agent](screenshots/10-Agent.png) |
 | ![AI images](screenshots/08-AI生成圖片.png) | ![Settings](screenshots/11-設定.png) |
+
+## Supply-chain security
+
+The **Security** badge at the top shows the latest scan result (green means it passed).
+
+- **Dependency scan**: runs on every push, every pull request and every Monday, and fails on any known vulnerability.
+  - Rust: `cargo audit` against the [RustSec](https://rustsec.org/) database.
+  - Frontend: `npm audit` against the npm advisory database.
+  - Each run keeps the full JSON reports in its `security-report` artifact.
+- **SBOM (software bill of materials)**: produced after every passing scan. It covers both the Rust and the frontend dependencies, in the two common formats:
+  - SPDX: `openmodel-manager.spdx.json`
+  - CycloneDX: `openmodel-manager.cdx.json`
+  - Download them from the `sbom` artifact of a [Security run](https://github.com/mosesmoon/openmodel-manager/actions/workflows/security.yml); releases will also carry them as release files.
+- **Build provenance**: for version tags, CI signs a GitHub attestation for every installer. It records the repository, commit and workflow run that built the file, and binds the SBOM to it. Check a download with:
+
+  ```bash
+  gh attestation verify OpenModel-Manager_0.1.0_x64_en-US.msi -R mosesmoon/openmodel-manager
+  ```
+
+Known notices: a few components Tauri uses on Linux (`glib`, the `zbus` family, `proc-macro-error`) are flagged as unmaintained or as having an unsound API. These are not vulnerabilities; the scan lists them without failing, and they will go away as Tauri updates.
 
 ## Build from source
 

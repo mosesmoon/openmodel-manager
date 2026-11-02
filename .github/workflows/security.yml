@@ -1,0 +1,70 @@
+name: Security
+
+# Dependency scan and SBOM on every push and pull request, and weekly so
+# advisories published after a change are caught too.
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Rust crates against the RustSec advisory database. Fails on any
+      # vulnerability; unmaintained/unsound notices are reported, not fatal.
+      - name: cargo audit
+        run: |
+          cargo audit --json > rust-audit.json || true
+          cargo audit
+      # JavaScript packages (frontend) against the npm advisory database.
+      - name: npm audit
+        working-directory: app
+        run: |
+          npm audit --json > ../npm-audit.json || true
+          npm audit --audit-level=low
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: |
+            rust-audit.json
+            npm-audit.json
+
+  sbom:
+    needs: audit
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      # One SBOM covering the Rust workspace (Cargo.lock) and the frontend
+      # (app/package-lock.json), in both formats supply-chain policies ask for.
+      - uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: openmodel-manager.spdx.json
+          upload-artifact: false
+      - uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: cyclonedx-json
+          output-file: openmodel-manager.cdx.json
+          upload-artifact: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: |
+            openmodel-manager.spdx.json
+            openmodel-manager.cdx.json

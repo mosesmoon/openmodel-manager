@@ -42,6 +42,14 @@
 - 瀏覽器裡沒有檔案選擇器：改為輸入路徑；「開啟資料夾」按鈕隱藏。
 - 已實測（Windows debug 版）：登入／錯誤密碼／未登入擋下、指令與 SSE 事件、儲存後重新啟動（本機與 LAN IP）、換連接埠、換密碼後舊 session 失效；瀏覽器內登入、選單四個位置與收合（偏好存在 localStorage）。
 
+## 供應鏈安全（`.github/workflows/security.yml`、`ci.yml`）
+
+- `cargo audit`（RustSec）與 `npm audit`：推送、PR、每週一；有漏洞即失敗，JSON 報告存為 artifact。
+- SBOM：syft 產生 SPDX 與 CycloneDX JSON，涵蓋 Cargo.lock 與 app/package-lock.json。
+- 版本標籤的打包：`actions/attest-build-provenance` 與 `actions/attest-sbom` 為每個安裝檔簽署來源證明。
+- 2026-11-02 本機掃描：`zip` 2.6.1 有 RUSTSEC-2026-0367／0368／0369，已升級到 9.2.2；解壓縮時另外遮掉 setuid／setgid／sticky 位元。之後 Rust 與 npm 均為 0 個漏洞；剩 5 個 Tauri Linux 相依的 unmaintained／unsound 警告。
+- 雲端尚未實際跑過這兩個新流程。
+
 ## 尚未驗證（需要使用者在測試機上跑）
 
 - `engine install` 與 `serve` 尚未實際下載引擎與載入模型；只在單元測試中用假程序驗證崩潰流程。

@@ -35,6 +35,11 @@ jobs:
 
   bundle:
     needs: test
+    # id-token and attestations: sign build provenance for tagged builds.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -76,14 +81,37 @@ jobs:
       - if: runner.os == 'macOS'
         run: npx tauri build --target universal-apple-darwin --bundles dmg
         working-directory: app
+      # Gather this platform's installers in one folder.
+      - name: Collect bundles
+        shell: bash
+        run: |
+          mkdir -p out
+          for f in target/release/bundle/msi/*.msi target/release/bundle/portable/*.zip target/release/bundle/appimage/*.AppImage                    target/release/bundle/deb/*.deb target/release/bundle/flatpak/*.flatpak target/universal-apple-darwin/release/bundle/dmg/*.dmg; do
+            [ -f "$f" ] && cp "$f" out/
+          done
+          ls -la out
+          test -n "$(ls out)"
+      # Tagged builds: an SBOM of the source they were built from, and signed
+      # attestations tying each installer to this repository, commit and
+      # workflow run (check with `gh attestation verify <file> -R <repo>`).
+      - if: startsWith(github.ref, 'refs/tags/')
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: out-sbom.spdx.json
+          upload-artifact: false
+      - if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: out/*
+      - if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: out/*
+          sbom-path: out-sbom.spdx.json
       - uses: actions/upload-artifact@v4
         with:
           name: bundle-${{ matrix.os }}
-          path: |
-            target/release/bundle/msi/
-            target/release/bundle/portable/
-            target/release/bundle/appimage/*.AppImage
-            target/release/bundle/deb/*.deb
-            target/release/bundle/flatpak/
-            target/universal-apple-darwin/release/bundle/dmg/
+          path: out/
           if-no-files-found: error

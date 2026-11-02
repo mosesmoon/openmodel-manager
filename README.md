@@ -2,6 +2,8 @@
 
 **繁體中文** | [English](README.en.md)
 
+[![CI](https://github.com/mosesmoon/openmodel-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/mosesmoon/openmodel-manager/actions/workflows/ci.yml) [![Security](https://github.com/mosesmoon/openmodel-manager/actions/workflows/security.yml/badge.svg)](https://github.com/mosesmoon/openmodel-manager/actions/workflows/security.yml)
+
 開源、跨平台（Windows / Linux / macOS）的本機 AI 模型管理工具。它會偵測你的硬體，規劃模型要怎麼分配到 GPU、記憶體和硬碟，接著幫你安裝推論引擎、從 Hugging Face 下載模型，並啟動 OpenAI 相容的本機伺服器。程式內建對話、Agent、AI 生成圖片與 AI 生成影片。
 
 ![概覽](screenshots/01-概覽.png)
@@ -87,6 +89,26 @@ print(r.choices[0].message.content)
 | ![模型](screenshots/02-模型-推薦.png) | ![執行](screenshots/06-執行.png) |
 | ![對話](screenshots/07-對話.png) | ![Agent](screenshots/10-Agent.png) |
 | ![AI 生成圖片](screenshots/08-AI生成圖片.png) | ![設定](screenshots/11-設定.png) |
+
+## 供應鏈安全
+
+上方的 **Security** 徽章顯示最新一次掃描結果（綠色＝通過）。
+
+- **套件掃描**：每次推送、每個 Pull Request、以及每週一自動掃描所有相依套件，有任何已知漏洞就會失敗。
+  - Rust：`cargo audit`，比對 [RustSec](https://rustsec.org/) 資料庫。
+  - 前端：`npm audit`，比對 npm 漏洞資料庫。
+  - 完整報告（JSON）在每次執行的 `security-report` artifact。
+- **SBOM（軟體物料清單）**：每次掃描通過後產生，同時涵蓋 Rust 與前端套件，提供兩種通用格式：
+  - SPDX：`openmodel-manager.spdx.json`
+  - CycloneDX：`openmodel-manager.cdx.json`
+  - 在 [Security 執行紀錄](https://github.com/mosesmoon/openmodel-manager/actions/workflows/security.yml) 的 `sbom` artifact 下載；正式發行版也會附在 Release 檔案中。
+- **建置來源證明**：推送版本標籤時，CI 會替每個安裝檔產生 GitHub 簽署的證明，載明它是由這個儲存庫、哪個提交、哪次 CI 執行建出來的，並把 SBOM 綁到安裝檔上。下載後可以驗證：
+
+  ```bash
+  gh attestation verify OpenModel-Manager_0.1.0_x64_en-US.msi -R mosesmoon/openmodel-manager
+  ```
+
+已知警告：Tauri 在 Linux 使用的幾個元件（`glib`、`zbus` 系列、`proc-macro-error`）被標為「不再維護」或「有不安全用法」。這些不是漏洞，掃描會列出但不判定失敗，會隨 Tauri 更新處理。
 
 ## 從原始碼建置
 
