@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use tokio_util::sync::CancellationToken;
 
 pub const REPO: &str = "Niko1221/Strata";
-/// Environment variable that carries the API key in LAN mode.
+/// Environment variable that carries the API key, when one is set.
 pub const KEY_ENV: &str = "OPENMODEL_STRATA_KEY";
 
 /// What `strata.json` records for an installed Terminal package.
@@ -288,7 +288,8 @@ pub struct LaunchOptions<'a> {
     pub port: u16,
     pub ctx: Option<u64>,
     pub vision: bool,
-    pub lan: bool,
+    /// Require the key in [`KEY_ENV`].
+    pub api_key: bool,
 }
 
 /// `strata launch` arguments that serve `model` without screens or questions.
@@ -312,10 +313,10 @@ pub fn launch_args(o: &LaunchOptions) -> Vec<String> {
     if !o.vision {
         a.extend(["--vision".into(), "off".into()]);
     }
-    if o.lan {
-        a.extend(["--access".into(), "lan".into(), "--api-key-env".into(), KEY_ENV.into()]);
-    } else {
-        a.extend(["--access".into(), "local".into()]);
+    // Always local: other computers come in through our forwarders (see `net`).
+    a.extend(["--access".into(), "local".into()]);
+    if o.api_key {
+        a.extend(["--api-key-env".into(), KEY_ENV.into()]);
     }
     a
 }
@@ -377,20 +378,20 @@ mod tests {
     #[test]
     fn args_for_split_model_use_folder() {
         let m = Path::new("/m/Qwen3.8-Flash-Next/Q2_0-00001-of-00004.gguf");
-        let a = launch_args(&LaunchOptions { source: Source::Path(m), port: 8081, ctx: Some(65536), vision: false, lan: true });
+        let a = launch_args(&LaunchOptions { source: Source::Path(m), port: 8081, ctx: Some(65536), vision: false, api_key: true });
         let i = a.iter().position(|x| x == "--model-path").unwrap();
         assert_eq!(Path::new(&a[i + 1]), Path::new("/m/Qwen3.8-Flash-Next"));
-        for w in [["--port", "8081"], ["--context", "65536"], ["--vision", "off"], ["--access", "lan"], ["--api-key-env", KEY_ENV]] {
+        for w in [["--port", "8081"], ["--context", "65536"], ["--vision", "off"], ["--access", "local"], ["--api-key-env", KEY_ENV]] {
             assert!(a.windows(2).any(|x| x[0] == w[0] && x[1] == w[1]), "{w:?} in {a:?}");
         }
-        let single = launch_args(&LaunchOptions { source: Source::Path(Path::new("/m/a.gguf")), port: 8080, ctx: None, vision: true, lan: false });
+        let single = launch_args(&LaunchOptions { source: Source::Path(Path::new("/m/a.gguf")), port: 8080, ctx: None, vision: true, api_key: false });
         assert!(single.contains(&"/m/a.gguf".to_string()) && single.contains(&"local".to_string()) && !single.contains(&"--vision".to_string()));
     }
 
     #[test]
     fn args_for_managed_model() {
         let d = Path::new("/models/strata");
-        let a = launch_args(&LaunchOptions { source: Source::Managed { family: "deepseek41", model: "ist-das-2.00bpw", data_dir: d }, port: 8080, ctx: None, vision: true, lan: false });
+        let a = launch_args(&LaunchOptions { source: Source::Managed { family: "deepseek41", model: "ist-das-2.00bpw", data_dir: d }, port: 8080, ctx: None, vision: true, api_key: false });
         for w in [["--family", "deepseek41"], ["--model", "ist-das-2.00bpw"], ["--port", "8080"]] {
             assert!(a.windows(2).any(|x| x[0] == w[0] && x[1] == w[1]), "{w:?} in {a:?}");
         }

@@ -63,7 +63,7 @@ enum Cmd {
         path: PathBuf,
         #[arg(long)]
         ctx: Option<u64>,
-        /// Listen on 0.0.0.0 (LAN access).
+        /// Open the server on every LAN address of this computer.
         #[arg(long)]
         lan: bool,
         #[arg(long)]
@@ -364,7 +364,7 @@ async fn main() -> Result<()> {
                 ctx,
                 model_path: path.display().to_string(),
                 mmproj_path: mmproj.map(|p| p.display().to_string()),
-                host: if lan || s.lan_access { "0.0.0.0".into() } else { "127.0.0.1".into() },
+                host: "127.0.0.1".into(),
                 port: port.unwrap_or(s.server_port),
                 custom_args: custom,
                 lang: s.language.clone(),
@@ -382,7 +382,9 @@ async fn main() -> Result<()> {
                     }
                 }
             });
-            let plan = srv.start_llama(&eng.binary, shape.total_bytes, |lvl| tiering::plan(&shape, &machine, &PlanOptions { safe_level: lvl, ..base.clone() }), &s.language).await;
+            // --lan opens every LAN address; otherwise the ones chosen in Settings.
+            srv.set_exposure(if lan { openmodel_core::net::lan_addresses().iter().filter_map(|a| a.ip.parse().ok()).collect() } else { s.exposed_ips() });
+            let plan = srv.start_llama(&eng.binary, shape.total_bytes, |lvl| tiering::plan(&shape, &machine, &PlanOptions { safe_level: lvl, ..base.clone() }), &s.language, s.server_key()).await;
             let plan = match plan {
                 Ok(p) => p,
                 Err(e) => {
@@ -395,7 +397,13 @@ async fn main() -> Result<()> {
             let st = srv.status();
             eprintln!();
             print_plan(&plan);
-            println!("\nready: http://{}:{}/v1  (OpenAI-compatible) · web UI http://127.0.0.1:{}/", if base.host == "0.0.0.0" { "<this-machine>" } else { "127.0.0.1" }, st.port, st.port);
+            println!("\nready: http://127.0.0.1:{}/v1  (OpenAI-compatible) · web UI http://127.0.0.1:{}/", st.port, st.port);
+            for ip in &st.exposed {
+                println!("       http://{ip}:{}/v1", st.port);
+            }
+            if st.api_key.is_some() {
+                println!("API key required (Authorization: Bearer <key>)");
+            }
             if let Some((a, b)) = st.gpu_layers {
                 println!("llama.cpp offloaded {a}/{b} layers to the GPU");
             }

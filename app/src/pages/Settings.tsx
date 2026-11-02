@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { api, Backend, EngineKind, Engines, NamedEndpoint, PyEngineInfo, PyVariant, Settings } from "../api";
+import { api, Backend, EngineKind, Engines, NamedEndpoint, NetAddr, PyEngineInfo, PyVariant, Settings } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 import { findProvider, PROVIDERS } from "../providers";
@@ -73,6 +73,15 @@ export default function SettingsPage() {
         <label className="field"><span>{t("settings.hf_token")}</span><input type="password" value={s.hf_token ?? ""} onChange={(e) => set("hf_token", e.target.value || null)} /></label>
         <label className="field"><span>{t("settings.github_prefix")}</span><input type="text" value={s.github_mirror_prefix} onChange={(e) => set("github_mirror_prefix", e.target.value)} /></label>
         <label className="check"><input type="checkbox" checked={s.lan_access} onChange={(e) => set("lan_access", e.target.checked)} />{t("settings.lan")}</label>
+        {s.lan_access && <LanAddresses chosen={s.lan_addresses} setChosen={(v) => set("lan_addresses", v)} />}
+        <div className="field">
+          <span>{t("settings.api_key")}</span>
+          <div className="row">
+            <input type="text" className="grow mono" placeholder={t("settings.api_key_none")} value={s.server_api_key ?? ""} onChange={(e) => set("server_api_key", e.target.value || null)} />
+            <button className="btn" onClick={() => set("server_api_key", "om-" + crypto.randomUUID().replace(/-/g, ""))}>{t("settings.api_key_generate")}</button>
+          </div>
+          <div className="muted small">{t("settings.api_key_hint")}</div>
+        </div>
         <div className="row">
           <span className="muted">{t("settings.ports")}</span>
           <label className="row small">{t("settings.llm_port")}<input type="number" style={{ width: 90 }} value={s.server_port} onChange={(e) => set("server_port", Number(e.target.value))} /></label>
@@ -295,6 +304,39 @@ function EndpointsCard({ list, setList }: { list: NamedEndpoint[]; setList: (l: 
         </select>
       </div>
       <div className="muted small">{t("settings.no_subscription")}</div>
+    </div>
+  );
+}
+
+/** Network cards the servers are opened on. None ticked means all of them. */
+function LanAddresses({ chosen, setChosen }: { chosen: string[]; setChosen: (v: string[]) => void }) {
+  const { t } = useI18n();
+  const [list, setList] = useState<NetAddr[] | null>(null);
+  const load = () => api.lanAddresses().then(setList, () => setList([]));
+  useEffect(() => { load(); }, []);
+  const toggle = (ip: string, on: boolean) => setChosen(on ? [...chosen, ip] : chosen.filter((x) => x !== ip));
+  // Chosen addresses this computer no longer has (a laptop off its usual network).
+  const missing = chosen.filter((ip) => list && !list.some((a) => a.ip === ip));
+  return (
+    <div className="stack" style={{ marginLeft: 24 }}>
+      <div className="row spread">
+        <span className="muted small">{t("settings.lan_pick")}</span>
+        <button className="btn" onClick={load}>{t("settings.lan_refresh")}</button>
+      </div>
+      {list?.length === 0 && <div className="muted small">{t("settings.lan_none")}</div>}
+      {list?.map((a) => (
+        <label key={a.ip} className="check">
+          <input type="checkbox" checked={chosen.includes(a.ip)} onChange={(e) => toggle(a.ip, e.target.checked)} />
+          <span className="mono">{a.ip}</span><span className="muted small">{a.name}</span>
+        </label>
+      ))}
+      {missing.map((ip) => (
+        <label key={ip} className="check muted">
+          <input type="checkbox" checked onChange={() => toggle(ip, false)} />
+          <span className="mono">{ip}</span><span className="small">{t("settings.lan_gone")}</span>
+        </label>
+      ))}
+      {list && list.length > 0 && chosen.length === 0 && <div className="muted small">{t("settings.lan_all")}</div>}
     </div>
   );
 }

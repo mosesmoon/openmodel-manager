@@ -25,7 +25,6 @@ export default function Overview() {
     return () => clearInterval(id);
   }, []);
 
-  const host = settings.lan_access ? "<this-computer>" : "127.0.0.1";
   return (
     <>
       <div className="row spread">
@@ -101,7 +100,14 @@ export default function Overview() {
           {llm?.model && <div className="muted small ellipsis" title={llm.model}>{llm.model}</div>}
           {llm?.state === "ready" && (
             <div className="small" style={{ marginTop: 6 }}>
-              {t("overview.api")}: <span className="mono">http://{host}:{llm.port}/v1</span>
+              {t("overview.api")}:
+              {["127.0.0.1", ...llm.exposed].map((ip) => <div key={ip} className="mono">http://{ip}:{llm.port}/v1</div>)}
+              {llm.api_key && (
+                <div className="row" style={{ marginTop: 4 }}>
+                  {t("overview.api_key")}: <span className="mono">{llm.api_key}</span>
+                  <button className="btn" onClick={() => navigator.clipboard.writeText(llm.api_key ?? "")}>{t("overview.copy")}</button>
+                </div>
+              )}
             </div>
           )}
           <div className="row" style={{ marginTop: 10 }}>

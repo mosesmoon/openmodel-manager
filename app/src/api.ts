@@ -24,6 +24,8 @@ export interface Settings {
   server_port: number;
   image_port: number;
   lan_access: boolean;
+  server_api_key: string | null;
+  lan_addresses: string[];
   backend: Backend | null;
   gpu_override: { vendor: string; name: string; vram_gb: number } | null;
   custom_args: Record<string, string>;
@@ -78,7 +80,8 @@ export interface StrataInstall { version: string; launcher: string; dir: string 
 export interface Engines { llama: InstalledEngine[]; sd: InstalledEngine[]; recommended: Backend[]; strata: StrataInstall | null; strata_available: boolean; strata_data_dir: string }
 
 export type ServerState = "stopped" | "starting" | "ready" | "crashed";
-export interface ServerStatus { state: ServerState; port: number; model: string | null; engine: string; safe_level: number; gpu_layers: [number, number] | null; last_crash: { problems: string[]; exit_code: number | null; tail: string[] } | null }
+export interface ServerStatus { state: ServerState; port: number; model: string | null; engine: string; safe_level: number; gpu_layers: [number, number] | null; api_key: string | null; exposed: string[]; last_crash: { problems: string[]; exit_code: number | null; tail: string[] } | null }
+export interface NetAddr { name: string; ip: string }
 export interface LoadProgress { stage: string; fraction: number; elapsed_secs: number }
 export type ServerEvent =
   | { type: "status"; state: ServerState; port: number }
@@ -138,6 +141,7 @@ export const api = {
   pyEngineRemove: (kind: PyKind) => invoke<void>("py_engine_remove", { kind }),
   pyEngineStart: (kind: PyKind, model: string, ctx: number | null) => invoke<number>("py_engine_start", { kind, model, ctx }),
   openFolder: (path: string) => invoke<void>("open_folder", { path }),
+  lanAddresses: () => invoke<NetAddr[]>("lan_addresses"),
   strataInstall: () => invoke<string>("strata_install"),
   strataRemove: () => invoke<void>("strata_remove"),
   strataManaged: () => invoke<ManagedModel[]>("strata_managed"),

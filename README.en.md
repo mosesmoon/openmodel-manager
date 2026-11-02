@@ -63,12 +63,15 @@ r = client.chat.completions.create(
 print(r.choices[0].message.content)
 ```
 
-To let other computers on your network connect:
+To let other computers connect:
 
-1. In Settings, turn on "Allow LAN connections (0.0.0.0)".
-2. Replace `127.0.0.1` with this computer's IP address.
+1. In Settings, tick "Allow connections from other computers".
+2. Tick the network cards to open. Only connected IPv4 addresses are listed; with none ticked, every card is opened.
+3. The Overview page lists every address the server can be reached on.
 
-Note: llama.cpp, vLLM and MLX currently accept LAN connections without an API key, so only turn this on for a network you trust.
+The model server itself listens only on `127.0.0.1`. OpenModel-Manager forwards each ticked address to it, so cards you leave unticked can't be used to connect.
+
+**API key**: set one in Settings, or press Generate. Leave it blank for no key. Once a key is set, clients must send `Authorization: Bearer <key>` (`api_key=` in the example above). llama.cpp, vLLM and Strata check the key; MLX has no authentication. Setting a key is recommended when other computers can connect.
 
 ## Screenshots
 

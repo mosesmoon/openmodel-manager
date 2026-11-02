@@ -17,6 +17,7 @@ pub mod hf;
 pub mod library;
 pub mod anthropic;
 pub mod llm;
+pub mod net;
 pub mod pyengine;
 pub mod strata;
 pub mod server;

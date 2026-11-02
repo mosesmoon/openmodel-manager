@@ -293,7 +293,7 @@ fn base_options(s: &Settings, o: &RunOptions, mmproj: Option<PathBuf>) -> PlanOp
         ctx: o.ctx,
         model_path: o.path.display().to_string(),
         mmproj_path: mmproj.map(|p| p.display().to_string()),
-        host: s.listen_host().into(),
+        host: "127.0.0.1".into(),
         port: s.server_port,
         custom_args: o.custom_args.clone().unwrap_or_else(|| s.custom_args.get(&key).cloned().unwrap_or_default()),
         lang: s.language.clone(),
@@ -505,13 +505,20 @@ async fn py_engine_start(state: State<'_, AppState>, kind: PyKind, model: String
     if model.is_empty() {
         return Err("enter a Hugging Face model id or a folder".into());
     }
-    let host = s.listen_host();
+    let host = "127.0.0.1";
+    state.llm.set_exposure(s.exposed_ips());
     let args = pyengine::serve_args(kind, &pyengine::ServeOptions { model: &model, host, port: s.server_port, ctx });
     let tag = match kind {
         PyKind::Vllm => "vllm",
         PyKind::Mlx => "mlx",
     };
-    state.llm.start_python(tag, &i.python, args, &pyengine::serve_env(&s), host, s.server_port, &model).await.map_err(errs)
+    state.llm.start_python(tag, &i.python, args, &pyengine::serve_env(&s), host, s.server_port, &model, s.server_key()).await.map_err(errs)
+}
+
+/// LAN addresses the servers can be opened on.
+#[tauri::command]
+fn lan_addresses() -> Vec<openmodel_core::net::NetAddr> {
+    openmodel_core::net::lan_addresses()
 }
 
 /// Open a folder in the system file manager. Only directories: the webview
@@ -631,7 +638,8 @@ async fn llm_start(state: State<'_, AppState>, opts: RunOptions) -> Res<Option<P
     let (shape, _, mmproj) = shape_for_file(&opts.path, opts.vision).map_err(errs)?;
     let machine = state.machine().await;
     let base = base_options(&s, &opts, mmproj);
-    state.llm.start_llama(&eng.binary, shape.total_bytes, |lvl| tiering::plan(&shape, &machine, &PlanOptions { safe_level: lvl, ..base.clone() }), &s.language).await.map(Some).map_err(errs)
+    state.llm.set_exposure(s.exposed_ips());
+    state.llm.start_llama(&eng.binary, shape.total_bytes, |lvl| tiering::plan(&shape, &machine, &PlanOptions { safe_level: lvl, ..base.clone() }), &s.language, s.server_key()).await.map(Some).map_err(errs)
 }
 
 /// Serve the model through Strata's launcher. Strata chooses its own GPU /
@@ -641,13 +649,15 @@ async fn strata_start(state: &AppState, source: strata::Source<'_>, label: &Path
     let inst = strata::installed(&s).ok_or("Strata is not installed (Settings → Engines)")?;
     // Free whatever holds the port before choosing one.
     state.llm.stop().await;
-    let port = find_free_port(s.listen_host(), s.server_port).ok_or("no free port")?;
-    let key = s.lan_access.then(|| uuid::Uuid::new_v4().simple().to_string());
+    let port = find_free_port("127.0.0.1", s.server_port).ok_or("no free port")?;
+    // Strata serves this computer only; chosen LAN addresses are forwarded to it.
+    state.llm.set_exposure(s.exposed_ips());
+    let key = s.server_key();
     let mut env = strata::env(&s);
     if let Some(k) = &key {
         env.push((strata::KEY_ENV.into(), k.clone()));
     }
-    let args = strata::launch_args(&strata::LaunchOptions { source, port, ctx, vision, lan: s.lan_access });
+    let args = strata::launch_args(&strata::LaunchOptions { source, port, ctx, vision, api_key: key.is_some() });
     std::fs::create_dir_all(strata::data_dir(&s)).map_err(err)?;
     state.llm.start_strata(&inst.launcher, args, env, port, label, key).await.map_err(errs)
 }
@@ -728,7 +738,8 @@ async fn sd_start(state: State<'_, AppState>, id: String, quant: String) -> Res<
         return Err("model files are not downloaded yet".into());
     }
     let eng = pick_engine(&s, EngineKind::Sd)?;
-    let args = diffusion::server_args(&s.models_dir, m, &quant, s.listen_host(), s.image_port);
+    let args = diffusion::server_args(&s.models_dir, m, &quant, "127.0.0.1", s.image_port);
+    state.sd.set_exposure(s.exposed_ips());
     let total: u64 = m.components.iter().filter_map(|c| std::fs::metadata(diffusion::component_path(&s.models_dir, m, c, &quant)).ok()).map(|md| md.len()).sum();
     let est = (total as f64 / 1.5e9).max(5.0);
     *state.sd_model.lock().unwrap() = None;
@@ -968,6 +979,7 @@ pub fn run() {
             engine_import,
             engine_remove,
             open_folder,
+            lan_addresses,
             py_engines,
             py_engine_install,
             py_engine_latest,

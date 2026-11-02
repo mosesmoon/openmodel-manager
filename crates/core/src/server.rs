@@ -5,6 +5,7 @@ use crate::tiering::Plan;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
@@ -12,6 +13,7 @@ use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::broadcast;
+use tokio::task::JoinHandle;
 
 const MAX_LOG_LINES: usize = 3000;
 pub const MAX_SAFE_LEVEL: u8 = 5;
@@ -198,9 +200,10 @@ pub struct ServerStatus {
     pub last_crash: Option<CrashInfo>,
     /// "llama", "sd" or "strata".
     pub engine: String,
-    /// Key clients must send (Strata in LAN mode).
-    #[serde(skip)]
+    /// Key clients must send (`Authorization: Bearer`), if any.
     pub api_key: Option<String>,
+    /// Addresses other computers can reach the server on, besides 127.0.0.1.
+    pub exposed: Vec<String>,
 }
 
 /// How to stop a server that runs detached from the process we started
@@ -224,6 +227,9 @@ struct Inner {
     engine: String,
     api_key: Option<String>,
     stop_cmd: Option<StopCommand>,
+    /// Addresses to open once the server is ready.
+    expose: Vec<IpAddr>,
+    forwards: Vec<(String, JoinHandle<()>)>,
 }
 
 /// One managed llama-server (or sd-server) process.
@@ -256,6 +262,12 @@ pub fn set_arg(args: &mut Vec<String>, flag: &str, value: &str) {
     args.push(value.into());
 }
 
+fn close_forwards(i: &mut Inner) {
+    for (_, h) in i.forwards.drain(..) {
+        h.abort();
+    }
+}
+
 fn arg_value<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
     args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1)).map(String::as_str)
 }
@@ -276,9 +288,28 @@ impl ManagedServer {
                 engine: String::new(),
                 api_key: None,
                 stop_cmd: None,
+                expose: vec![],
+                forwards: vec![],
             })),
             events: tx,
         }
+    }
+
+    /// Addresses to open the next server on (empty: this computer only).
+    pub fn set_exposure(&self, ips: Vec<IpAddr>) {
+        self.inner.lock().unwrap().expose = ips;
+    }
+
+    async fn open_forwards(&self, port: u16) {
+        let ips = self.inner.lock().unwrap().expose.clone();
+        let mut opened = vec![];
+        for ip in ips {
+            match crate::net::forward(ip, port).await {
+                Ok(h) => opened.push((ip.to_string(), h)),
+                Err(e) => self.emit(ServerEvent::Note { message: format!("{ip}:{port}: {e}") }),
+            }
+        }
+        self.inner.lock().unwrap().forwards = opened;
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<ServerEvent> {
@@ -300,6 +331,7 @@ impl ManagedServer {
             last_crash: i.last_crash.clone(),
             engine: i.engine.clone(),
             api_key: i.api_key.clone(),
+            exposed: i.forwards.iter().map(|(ip, _)| ip.clone()).collect(),
         }
     }
 
@@ -354,6 +386,7 @@ impl ManagedServer {
             i.engine = engine.into();
             i.api_key = None;
             i.stop_cmd = None;
+            close_forwards(&mut i);
         }
         if let Some(o) = stdout {
             self.pump(o);
@@ -387,6 +420,7 @@ impl ManagedServer {
     pub async fn wait_ready(&self, health_path: &str, timeout: Duration, total_bytes: u64, est_load_secs: f64) -> Result<()> {
         let http = reqwest::Client::builder().timeout(Duration::from_secs(3)).build()?;
         let url = format!("{}{}", self.base_url(), health_path);
+        let key = self.inner.lock().unwrap().api_key.clone();
         let t0 = Instant::now();
         loop {
             let exited = {
@@ -412,7 +446,11 @@ impl ManagedServer {
                 self.emit(ServerEvent::Crashed { problems: crash.problems.clone(), exit_code: code, safe_level: lvl });
                 bail!("server exited during startup (code {:?}, problems {:?})", code, crash.problems);
             }
-            if let Ok(r) = http.get(&url).send().await {
+            let mut req = http.get(&url);
+            if let Some(k) = &key {
+                req = req.bearer_auth(k);
+            }
+            if let Ok(r) = req.send().await {
                 if r.status().is_success() {
                     let port = {
                         let mut i = self.inner.lock().unwrap();
@@ -420,6 +458,7 @@ impl ManagedServer {
                         i.parser.advance(LoadStage::Ready);
                         i.port
                     };
+                    self.open_forwards(port).await;
                     self.emit(ServerEvent::Progress(estimate_progress(LoadStage::Ready, t0.elapsed(), total_bytes, est_load_secs)));
                     self.emit(ServerEvent::Status { state: ServerState::Ready, port });
                     return Ok(());
@@ -437,6 +476,7 @@ impl ManagedServer {
 
     fn stop_now(&self) {
         let mut i = self.inner.lock().unwrap();
+        close_forwards(&mut i);
         if let Some(mut c) = i.child.take() {
             let _ = c.start_kill();
         }
@@ -446,6 +486,7 @@ impl ManagedServer {
     pub async fn stop(&self) {
         let (child, stop_cmd) = {
             let mut i = self.inner.lock().unwrap();
+            close_forwards(&mut i);
             (i.child.take(), i.stop_cmd.take())
         };
         if let Some(mut c) = child {
@@ -516,6 +557,7 @@ impl ManagedServer {
             if let Ok(r) = http.get(&url).send().await {
                 if r.status().is_success() {
                     self.inner.lock().unwrap().state = ServerState::Ready;
+                    self.open_forwards(port).await;
                     self.emit(ServerEvent::Status { state: ServerState::Ready, port });
                     return Ok(());
                 }
@@ -535,14 +577,21 @@ impl ManagedServer {
     /// Start a Python engine (vLLM / MLX) from its venv. `model` is the
     /// Hugging Face id or folder it serves; the first start may download it,
     /// so readiness is awaited for up to an hour.
+    /// `api_key` is only enforced by vLLM; mlx_lm.server has no authentication.
     #[allow(clippy::too_many_arguments)]
-    pub async fn start_python(&self, engine: &str, python: &Path, args: Vec<String>, env: &[(String, String)], host: &str, wanted_port: u16, model: &str) -> Result<u16> {
+    pub async fn start_python(&self, engine: &str, python: &Path, args: Vec<String>, env: &[(String, String)], host: &str, wanted_port: u16, model: &str, api_key: Option<String>) -> Result<u16> {
         self.stop().await;
         let bind = if host == "0.0.0.0" { "0.0.0.0" } else { "127.0.0.1" };
         let port = find_free_port(bind, wanted_port).context("no free port")?;
         let mut args = args;
         set_arg(&mut args, "--port", &port.to_string());
-        self.launch(python, &args, env, port, Some(PathBuf::from(model)), 0, engine)?;
+        let api_key = api_key.filter(|_| engine == "vllm");
+        let mut env = env.to_vec();
+        if let Some(k) = &api_key {
+            env.push(("VLLM_API_KEY".into(), k.clone()));
+        }
+        self.launch(python, &args, &env, port, Some(PathBuf::from(model)), 0, engine)?;
+        self.inner.lock().unwrap().api_key = api_key;
         self.wait_ready("/v1/models", Duration::from_secs(3600), 0, 600.0).await?;
         Ok(port)
     }
@@ -562,7 +611,9 @@ impl ManagedServer {
 
     /// Start llama-server, retrying with higher compatibility levels when it
     /// crashes during load. `make_plan(level)` builds the plan for a level.
-    pub async fn start_llama(&self, binary: &Path, total_bytes: u64, make_plan: impl Fn(u8) -> Plan, lang: &str) -> Result<Plan> {
+    /// `api_key` goes in through the environment so it stays out of the
+    /// command line shown on the Run page.
+    pub async fn start_llama(&self, binary: &Path, total_bytes: u64, make_plan: impl Fn(u8) -> Plan, lang: &str, api_key: Option<String>) -> Result<Plan> {
         let zh = lang.starts_with("zh");
         let mut level = 0u8;
         if self.inner.lock().unwrap().stop_cmd.is_some() {
@@ -570,7 +621,12 @@ impl ManagedServer {
         }
         loop {
             let plan = make_plan(level);
-            self.spawn(binary, plan.args.clone(), &plan.env, level)?;
+            let mut env = plan.env.clone();
+            if let Some(k) = &api_key {
+                env.push(("LLAMA_API_KEY".into(), k.clone()));
+            }
+            self.spawn(binary, plan.args.clone(), &env, level)?;
+            self.inner.lock().unwrap().api_key = api_key.clone();
             let timeout = Duration::from_secs_f64((plan.est_load_secs * 6.0).max(300.0));
             match self.wait_ready("/health", timeout, total_bytes, plan.est_load_secs).await {
                 Ok(()) => {

@@ -43,6 +43,13 @@ pub struct Settings {
     pub image_port: u16,
     /// Listen on 0.0.0.0 instead of 127.0.0.1.
     pub lan_access: bool,
+    /// Addresses to open the servers on when `lan_access` is set; empty
+    /// means every LAN address this computer has.
+    #[serde(default)]
+    pub lan_addresses: Vec<String>,
+    /// Key clients of the local LLM server must send; blank means none.
+    #[serde(default)]
+    pub server_api_key: Option<String>,
     /// Preferred backend; None = pick automatically.
     pub backend: Option<crate::hardware::Backend>,
     pub gpu_override: Option<GpuOverride>,
@@ -82,6 +89,8 @@ impl Default for Settings {
             server_port: 8080,
             image_port: 7860,
             lan_access: false,
+            server_api_key: None,
+            lan_addresses: vec![],
             backend: None,
             gpu_override: None,
             custom_args: HashMap::new(),
@@ -120,6 +129,11 @@ fn settings_path() -> PathBuf {
 }
 
 impl Settings {
+    /// The local server's API key, or `None` when left blank.
+    pub fn server_key(&self) -> Option<String> {
+        self.server_api_key.as_deref().map(str::trim).filter(|k| !k.is_empty()).map(String::from)
+    }
+
     pub fn load() -> Settings {
         let s: Settings = std::fs::read(settings_path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
         s.resolved_in(&data_dir())
@@ -168,13 +182,16 @@ impl Settings {
         Ok(())
     }
 
-    /// Host llama-server / sd-server should bind to.
-    pub fn listen_host(&self) -> &'static str {
-        if self.lan_access {
-            "0.0.0.0"
-        } else {
-            "127.0.0.1"
+    /// Addresses the servers are opened on besides 127.0.0.1 (the servers
+    /// themselves bind 127.0.0.1; see [`crate::net`]). Chosen addresses that
+    /// this computer no longer has are skipped.
+    pub fn exposed_ips(&self) -> Vec<std::net::IpAddr> {
+        if !self.lan_access {
+            return vec![];
         }
+        let have: Vec<String> = crate::net::lan_addresses().into_iter().map(|a| a.ip).collect();
+        let pick: Vec<&String> = if self.lan_addresses.is_empty() { have.iter().collect() } else { self.lan_addresses.iter().filter(|a| have.contains(a)).collect() };
+        pick.into_iter().filter_map(|a| a.parse().ok()).collect()
     }
 
     /// Apply the optional mirror prefix to a GitHub download URL.

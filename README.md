@@ -58,7 +58,15 @@ r = client.chat.completions.create(
 print(r.choices[0].message.content)
 ```
 
-要讓區網內其他電腦連進來，請到「設定」打開「允許區網連線（0.0.0.0）」，再把 `127.0.0.1` 換成這台電腦的 IP。注意：目前 llama.cpp、vLLM、MLX 在區網模式下不需要 API key，請只在信任的網路開放。
+要讓其他電腦連進來：
+
+1. 到「設定」勾選「允許本機以外的電腦連線」。
+2. 勾選要開放的網路卡。清單只列出有連上網路的 IPv4 位址，都沒勾時會開放全部網卡。
+3. 概覽頁會列出每個可連線的網址。
+
+模型伺服器本身只聽 `127.0.0.1`，勾選的位址由 OpenModel-Manager 轉接過去，所以沒勾的網卡連不進來。
+
+**API key**：可在「設定」填入或按「產生」，留空就是不需要 key。設定後，用戶端要帶 `Authorization: Bearer <key>`（上面範例的 `api_key=`）。llama.cpp、vLLM、Strata 都會檢查 key，MLX 沒有驗證功能。開放給其他電腦時建議設定 key。
 
 ## 截圖
 
