@@ -695,7 +695,7 @@ fn resolve_endpoint(state: &AppState, ep: Option<Endpoint>) -> Res<Endpoint> {
             if st.state != openmodel_core::server::ServerState::Ready {
                 return Err("no local model is running (Run page)".into());
             }
-            Ok(Endpoint { base_url: format!("{}/v1", state.llm.base_url()), api_key: st.api_key, model: String::new() })
+            Ok(Endpoint { base_url: format!("{}/v1", state.llm.base_url()), api_key: st.api_key, ..Default::default() })
         }
     }
 }
