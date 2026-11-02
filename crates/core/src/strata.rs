@@ -63,13 +63,16 @@ pub struct OfficialPack {
     pub family: &'static str,
     pub repo: &'static str,
     pub quants: &'static [&'static str],
+    /// Limit of Strata's Mac (Metal) engine for this model, if any:
+    /// "unsupported" or "text_64gb".
+    pub mac_limit: Option<&'static str>,
 }
 
 pub const OFFICIAL: &[OfficialPack] = &[
-    OfficialPack { family: "qwen3.8-flash-next", repo: "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF", quants: &["Q2_0", "IQ2_XS", "IQ3_XXS", "IQ3_S"] },
-    OfficialPack { family: "qwen3.8-flash-next", repo: "unsloth/Qwen3.8-Flash-Next-GGUF", quants: &["UD-IQ4_XS", "UD-Q4_K_XL", "UD-Q5_K_XL", "UD-Q6_K_XL", "Q8_0"] },
+    OfficialPack { family: "qwen3.8-flash-next", repo: "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF", quants: &["Q2_0", "IQ2_XS", "IQ3_XXS", "IQ3_S"], mac_limit: None },
+    OfficialPack { family: "qwen3.8-flash-next", repo: "unsloth/Qwen3.8-Flash-Next-GGUF", quants: &["UD-IQ4_XS", "UD-Q4_K_XL", "UD-Q5_K_XL", "UD-Q6_K_XL", "Q8_0"], mac_limit: None },
     // Strata runs Qwen3.6 only from the edition that carries the MTP draft layer.
-    OfficialPack { family: "qwen3.6-35b-a3b", repo: "unsloth/Qwen3.6-35B-A3B-MTP-GGUF", quants: &["UD-Q4_K_XL", "UD-Q6_K_XL", "Q8_0"] },
+    OfficialPack { family: "qwen3.6-35b-a3b", repo: "unsloth/Qwen3.6-35B-A3B-MTP-GGUF", quants: &["UD-Q4_K_XL", "UD-Q6_K_XL", "Q8_0"], mac_limit: Some("unsupported") },
 ];
 
 fn normalise(name: &str) -> String {
@@ -230,6 +233,8 @@ pub struct ManagedModel {
     pub origin: &'static str,
     pub family: &'static str,
     pub tags: &'static [&'static str],
+    /// As `OfficialPack::mac_limit`.
+    pub mac_limit: Option<&'static str>,
     pub sets: &'static [ManagedSet],
     pub desc_zh: &'static str,
     pub desc_en: &'static str,
@@ -251,6 +256,7 @@ pub const MANAGED: &[ManagedModel] = &[ManagedModel {
     origin: "CN",
     family: "deepseek41",
     tags: &["chat", "code", "reasoning"],
+    mac_limit: Some("text_64gb"),
     sets: &[
         ManagedSet { model: "ist-das-1.75bpw", label: "1.75 bpw (IQ1_M)", disk_gb: 239.0 },
         ManagedSet { model: "ist-das-2.00bpw", label: "2.00 bpw (IQ2_XXS)", disk_gb: 257.0 },

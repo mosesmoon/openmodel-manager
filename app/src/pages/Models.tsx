@@ -130,7 +130,7 @@ function Recommended() {
                 <select value={q} onChange={(e) => setChoice({ ...choice, [m.id]: e.target.value })}>
                   {m.fits.map((f) => (
                     <option key={f.quant} value={f.quant}>
-                      {f.quant} · {gb(f.size_bytes)}{f.quant === m.recommended ? " ★" : ""}{f.installed ? " ✓" : ""}{spOk(f.quant) ? " · Strata" : ""}
+                      {f.quant} · {gb(f.size_bytes)}{f.quant === m.recommended ? " ★" : ""}{f.installed ? " ✓" : ""}{spOk(f.quant) ? ` · Strata${sp?.mac_limit ? `（${t(`models.mac_short_${sp.mac_limit}` as Key)}）` : ""}` : ""}
                     </option>
                   ))}
                 </select>
@@ -145,6 +145,7 @@ function Recommended() {
               {sp && !sameRepo && (
                 <div className="note small stack" style={{ gap: 6 }}>
                   <div>{t("models.strata_other_repo")} <span className="mono">{sp.repo}</span> ({sp.quants.join(", ")})</div>
+                  {sp.mac_limit && <div className="note warn small">{t(`models.mac_warn_${sp.mac_limit}` as Key)}</div>}
                   <div>
                     <button className="btn sm" onClick={() => api.hfDownload(sp.repo, spQuant, vision && m.vision).then((id) => track(id, `${m.name} MTP ${spQuant}`, () => load()), fail)}>
                       {t("models.strata_download")} ({spQuant})
@@ -206,9 +207,10 @@ function ManagedCard({ m, hasStrata }: { m: ManagedModel; hasStrata: boolean }) 
       <div className="row">{m.tags.map((x) => <span key={x} className="pill">{tagLabel(t, x)}</span>)}</div>
       <div className="row">
         <select value={set} onChange={(e) => { setSet(e.target.value); setPlan(null); }}>
-          {m.sets.map((x) => <option key={x.model} value={x.model}>{x.label} · {x.disk_gb} GB</option>)}
+          {m.sets.map((x) => <option key={x.model} value={x.model}>{x.label} · {x.disk_gb} GB{m.mac_limit ? ` · ${t(`models.mac_short_${m.mac_limit}` as Key)}` : ""}</option>)}
         </select>
       </div>
+      {m.mac_limit && <div className="note warn small">{t(`models.mac_warn_${m.mac_limit}` as Key)}</div>}
       <div className="muted small ellipsis" title={m.dir}>{t("models.strata_dir")}: <span className="mono">{m.dir}</span></div>
       {hasStrata ? (
         <div className="row">

@@ -48,9 +48,10 @@ export interface CatalogEntry {
   strata: StrataPack | null;
   origin?: string | null;
 }
-export interface StrataPack { family: string; repo: string; quants: string[] }
+export type MacLimit = "unsupported" | "text_64gb";
+export interface StrataPack { family: string; repo: string; quants: string[]; mac_limit: MacLimit | null }
 export interface ManagedSet { model: string; label: string; disk_gb: number }
-export interface ManagedModel { id: string; name: string; org: string; origin: string; family: string; tags: string[]; sets: ManagedSet[]; description: string; dir: string }
+export interface ManagedModel { id: string; name: string; org: string; origin: string; family: string; tags: string[]; mac_limit: MacLimit | null; sets: ManagedSet[]; description: string; dir: string }
 
 export interface Plan {
   tier: Tier; tier_label: string; ctx: number; gpu_layers: number; n_cpu_moe: number;
