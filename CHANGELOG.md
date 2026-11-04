@@ -7,6 +7,18 @@ This file records the changes in each version, loosely following [Keep a Changel
 > Beta 版的程式內版本號仍是 0.1.0，安裝檔檔名也是 `0.1.0`，正式發行 0.1.1 時才會更新。
 > Beta builds still carry version 0.1.0 inside the app and in the installer file names; it changes at the 0.1.1 release.
 
+## [Unreleased]
+
+### 變更
+- 速度估算改用偵測到的記憶體頻寬：讀取每支記憶體的實際速度（MT/s）與通道數，算出頻寬（例如 DDR5-5600 雙通道約 90 GB/s、單通道只有一半）。以前 Windows / Linux 一律當作 60 GB/s。內建顯示卡（APU）也改用這個頻寬。讀不到時依記憶體類型給典型值，「概覽」頁會標示「估計」。
+- 模型硬碟會分辨 NVMe（含 PCIe 世代與通道數，例如 PCIe 4.0 x4 約 6.7 GB/s）、SATA SSD、USB、Thunderbolt 與 HDD，用來估算載入時間與從硬碟讀取時的速度。以前所有 SSD 都當作 1.5 GB/s。
+- 「概覽」頁顯示記憶體速度、通道數與硬碟的連接方式與讀取速度；`openmodel hw` 也一樣。
+
+### Changed
+- Speed estimates use the detected memory bandwidth: the running speed (MT/s) and channel count of the installed memory give the bandwidth (dual-channel DDR5-5600 is about 90 GB/s; a single channel is half that). Windows and Linux used to assume 60 GB/s. Integrated GPUs (APUs) use this bandwidth too. When it can't be read, a typical value for the memory type is used and the Overview page marks it as typical.
+- The model drive is identified as NVMe (with its PCIe generation and lanes; PCIe 4.0 x4 is about 6.7 GB/s), SATA SSD, USB, Thunderbolt or hard disk, for load-time and disk-read estimates. Every SSD used to count as 1.5 GB/s.
+- The Overview page shows the memory speed and channels, and the drive's connection and read speed; so does `openmodel hw`.
+
 ## [0.1.1-beta.5] - 2026-11-03
 
 ### 新增

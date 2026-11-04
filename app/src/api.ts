@@ -42,10 +42,15 @@ export interface Settings {
 }
 
 export interface GpuInfo { vendor: string; name: string; vram_total: number; vram_free: number | null; driver: string | null; unified_memory: boolean; bandwidth_gbs: number }
-export interface DiskInfo { mount: string; total: number; available: number; is_ssd: boolean | null }
+export type DiskBus = "nvme" | "sata" | "usb" | "thunderbolt" | "apple" | "mmc" | "other";
+export interface DiskInfo {
+  mount: string; total: number; available: number; is_ssd: boolean | null;
+  bus: DiskBus | null; pcie_gen: number | null; pcie_lanes: number | null; read_bps: number;
+}
 export interface Hardware {
   os: string; arch: string; cpu_name: string; cpu_cores: number; cpu_threads: number;
   ram_total: number; ram_available: number; ram_type: string | null; ram_bandwidth_gbs: number;
+  ram_speed_mts: number | null; ram_bus_bits: number | null; ram_bandwidth_detected: boolean;
   gpus: GpuInfo[]; model_disk: DiskInfo | null; recommended_backends: Backend[];
 }
 export interface VramUse { name: string; used: number; total: number; spill_suspected: boolean }
