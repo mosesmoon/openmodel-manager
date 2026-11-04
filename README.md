@@ -10,7 +10,7 @@
 
 ## 功能
 
-- **硬體偵測**：支援 NVIDIA、AMD、Intel 和 Apple Silicon，會讀取 VRAM（含 APU 共用記憶體）、RAM 類型、SSD / HDD。
+- **硬體偵測**：支援 NVIDIA、AMD、Intel 和 Apple Silicon，會讀取 VRAM（含 APU 共用記憶體）、記憶體類型、速度與通道數（算出記憶體頻寬），以及模型硬碟是 NVMe（含 PCIe 世代與通道數）、SATA SSD、USB 或 HDD。
 - **配置規劃**：在下載前就估算每個量化版本的 GPU / RAM / 硬碟分配和預估 tok/s。放不進 GPU 時，依序改用 MoE 專家卸載、層卸載、mmap 溢出到硬碟。也會自動選最大且不降速的 context。
 - **推論引擎**，都能從程式內下載與更新：
   - [llama.cpp](https://github.com/ggml-org/llama.cpp)：CUDA / Vulkan / ROCm / Metal / CPU，自動選擇。

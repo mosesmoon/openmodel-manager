@@ -10,7 +10,7 @@ An open-source, cross-platform (Windows / Linux / macOS) manager for local AI mo
 
 ## Features
 
-- **Hardware detection**: NVIDIA, AMD, Intel and Apple Silicon. Reads VRAM (including APU shared memory), RAM type, and whether each drive is an SSD or HDD.
+- **Hardware detection**: NVIDIA, AMD, Intel and Apple Silicon. Reads VRAM (including APU shared memory); RAM type, speed and channel count, which give its bandwidth; and whether the model drive is NVMe (with its PCIe generation and lanes), a SATA SSD, USB or a hard disk.
 - **Placement planning**: before you download, it estimates the GPU / RAM / disk split and tok/s for every quantization. When a model doesn't fit on the GPU, it falls back in order: MoE expert offload, layer offload, then mmap spill to disk. It also picks the largest context that doesn't slow the model down.
 - **Inference engines**, each downloaded and updated from inside the app:
   - [llama.cpp](https://github.com/ggml-org/llama.cpp): CUDA, Vulkan, ROCm, Metal or CPU, chosen automatically.
