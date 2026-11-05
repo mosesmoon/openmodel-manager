@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { inBrowser, pickPath, reveal } from "../bridge";
-import { api, CatalogEntry, gb, HfModel, LocalModel, ManagedModel, MediaModel, RepoListing } from "../api";
+import { api, CatalogEntry, DiskInfo, driveKind, gb, HfModel, LocalModel, ManagedModel, MediaModel, RepoListing } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 
@@ -253,8 +253,26 @@ function ManagedCard({ m, hasStrata }: { m: ManagedModel; hasStrata: boolean }) 
   );
 }
 
+// One hardware request shared by every bar, redone when the models folder moves.
+let diskCache: { dir: string; disk: Promise<DiskInfo | null> } | null = null;
+
+function useModelDisk(): DiskInfo | null {
+  const { settings } = useApp();
+  const [disk, setDisk] = useState<DiskInfo | null>(null);
+  useEffect(() => {
+    if (diskCache?.dir !== settings.models_dir) {
+      diskCache = { dir: settings.models_dir, disk: api.hardware().then((h) => h.model_disk, () => null) };
+    }
+    let live = true;
+    diskCache.disk.then((d) => live && setDisk(d));
+    return () => { live = false; };
+  }, [settings.models_dir]);
+  return disk;
+}
+
 export function SplitBar({ gpu, ram, disk }: { gpu: number; ram: number; disk: number }) {
   const { t } = useI18n();
+  const drive = driveKind(useModelDisk()) || t("run.disk");
   const total = Math.max(1, gpu + ram + disk);
   return (
     <div className="stack" style={{ gap: 4 }}>
@@ -266,7 +284,7 @@ export function SplitBar({ gpu, ram, disk }: { gpu: number; ram: number; disk: n
       <div className="legend small">
         <span><i className="g" />{t("run.gpu")} {gb(gpu)}</span>
         <span><i className="r" />{t("run.ram")} {gb(ram)}</span>
-        <span><i className="d" />NVMe {gb(disk)}</span>
+        <span><i className="d" />{drive} {gb(disk)}</span>
       </div>
     </div>
   );

@@ -516,6 +516,11 @@ pub fn detect(models_dir: &Path) -> HardwareReport {
     }
 }
 
+/// The drive holding `models_dir`, read on its own (when the folder moves).
+pub fn model_disk(models_dir: &Path) -> Option<DiskInfo> {
+    best_disk_for(models_dir, &sysinfo::Disks::new_with_refreshed_list())
+}
+
 fn best_disk_for(path: &Path, disks: &sysinfo::Disks) -> Option<DiskInfo> {
     let mut p = path.to_path_buf();
     while !p.exists() {
