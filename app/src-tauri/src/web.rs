@@ -58,6 +58,13 @@ pub fn relay_events(app: &AppHandle) {
     }
 }
 
+/// Restart in the background. A plain function, so the async `save_settings`
+/// (which this server's own request handler awaits) doesn't contain the
+/// server's future in its type, which would make that type recursive.
+pub fn restart_later(app: AppHandle) {
+    tauri::async_runtime::spawn(restart(app));
+}
+
 /// (Re)start the page from the current settings; stops it when it is off.
 pub async fn restart(app: AppHandle) {
     let state = app.state::<AppState>();
@@ -220,7 +227,7 @@ async fn dispatch(app: &AppHandle, cmd: &str, a: Value) -> Res<Value> {
     match cmd {
         "cancel_job" => out(cancel_job(st(), arg(&a, "id")?)),
         "get_settings" => out(get_settings(st())),
-        "save_settings" => out(save_settings(h(), st(), arg(&a, "settings")?)?),
+        "save_settings" => out(save_settings(h(), st(), arg(&a, "settings")?).await?),
         "app_paths" => out(app_paths()),
         "get_hardware" => out(get_hardware(st(), arg(&a, "refresh")?).await?),
         "live_vram" => out(live_vram().await),

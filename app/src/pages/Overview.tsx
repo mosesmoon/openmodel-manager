@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, DiskBus, DiskInfo, Engines, gb, Hardware, JitStatus, NamedEndpoint, VramUse } from "../api";
+import { api, BUS_LABEL, DiskInfo, Engines, gb, Hardware, JitStatus, NamedEndpoint, VramUse } from "../api";
 import { useApp } from "../App";
 import { Key, T, useI18n } from "../i18n";
 import { findProvider } from "../providers";
@@ -170,10 +170,6 @@ function ramBus(hw: Hardware, t: T): string {
   if (hw.ram_type?.toUpperCase().startsWith("LPDDR")) return `${bits}-bit`;
   return t("overview.channels").replace("{n}", String(bits / 64));
 }
-
-const BUS_LABEL: Record<DiskBus, string> = {
-  nvme: "NVMe", sata: "SATA", usb: "USB", thunderbolt: "Thunderbolt", apple: "Apple", mmc: "eMMC / SD", other: "",
-};
 
 /** "NVMe PCIe 4.0 x4". */
 function diskLink(d: DiskInfo): string {

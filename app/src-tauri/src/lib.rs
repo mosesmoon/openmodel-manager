@@ -88,6 +88,20 @@ impl AppState {
         h
     }
 
+    /// Re-read the drive holding the models folder after it moved, so load-time
+    /// and disk-spill estimates use the new drive. Nothing to do before the
+    /// first detection, which reads it anyway.
+    async fn refresh_model_disk(&self) {
+        if self.hw.read().unwrap().is_none() {
+            return;
+        }
+        let dir = self.settings().models_dir;
+        let disk = tokio::task::spawn_blocking(move || hardware::model_disk(&dir)).await.ok().flatten();
+        if let Some(h) = self.hw.write().unwrap().as_mut() {
+            h.model_disk = disk;
+        }
+    }
+
     async fn machine(&self) -> Machine {
         let hw = self.hardware(false).await;
         Machine::from_report(&hw, &self.settings())
@@ -167,16 +181,21 @@ fn get_settings(state: State<AppState>) -> Settings {
 }
 
 #[tauri::command]
-fn save_settings(app: AppHandle, state: State<AppState>, mut settings: Settings) -> Res<()> {
+async fn save_settings(app: AppHandle, state: State<'_, AppState>, mut settings: Settings) -> Res<()> {
     let old = state.settings();
     // The password only changes through `web_ui_set_password`.
     settings.web_password = old.web_password.clone();
     settings.save().map_err(errs)?;
     let web_changed = (old.web_ui, old.web_port, old.web_lan, &old.web_addresses) != (settings.web_ui, settings.web_port, settings.web_lan, &settings.web_addresses);
     let jit_changed = (old.jit_api, old.server_port, old.lan_access, &old.lan_addresses) != (settings.jit_api, settings.server_port, settings.lan_access, &settings.lan_addresses);
+    let dir_changed = old.models_dir != settings.models_dir;
     *state.settings.write().unwrap() = settings;
+    // Finish before returning so the UI's next estimate already uses the new drive.
+    if dir_changed {
+        state.refresh_model_disk().await;
+    }
     if web_changed {
-        tauri::async_runtime::spawn(web::restart(app.clone()));
+        web::restart_later(app.clone());
     }
     if jit_changed {
         tauri::async_runtime::spawn(jit::restart(app));
