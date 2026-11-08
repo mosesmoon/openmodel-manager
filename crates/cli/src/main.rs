@@ -225,12 +225,30 @@ async fn main() -> Result<()> {
                 return print_json(&hw);
             }
             println!("{} {} · {} ({} cores / {} threads)", hw.os, hw.arch, hw.cpu_name, hw.cpu_cores, hw.cpu_threads);
-            println!("RAM {} total, {} free{}", gb(hw.ram_total), gb(hw.ram_available), hw.ram_type.as_ref().map(|t| format!(" ({t})")).unwrap_or_default());
+            let ram_kind = match (&hw.ram_type, hw.ram_speed_mts) {
+                (Some(t), Some(s)) => format!(" ({t}-{s})"),
+                (Some(t), None) => format!(" ({t})"),
+                (None, Some(s)) => format!(" ({s} MT/s)"),
+                (None, None) => String::new(),
+            };
+            let bus = hw.ram_bus_bits.map(|b| format!(" · {b}-bit bus")).unwrap_or_default();
+            let how = if hw.ram_bandwidth_detected { "" } else { " (typical, not detected)" };
+            println!("RAM {} total, {} free{ram_kind}{bus} · ~{:.0} GB/s{how}", gb(hw.ram_total), gb(hw.ram_available), hw.ram_bandwidth_gbs);
             for g in &hw.gpus {
                 println!("GPU {:?} {} · {}{} · ~{:.0} GB/s", g.vendor, g.name, gb(g.vram_total), if g.unified_memory { " (shared)" } else { "" }, g.bandwidth_gbs);
             }
             if let Some(d) = &hw.model_disk {
-                println!("Model disk {} · {} free · {}", d.mount, gb(d.available), match d.is_ssd { Some(true) => "SSD", Some(false) => "HDD", None => "unknown type" });
+                let media = match d.is_ssd {
+                    Some(true) => "SSD",
+                    Some(false) => "HDD",
+                    None => "unknown type",
+                };
+                let bus = d.bus.map(|b| format!(" · {b:?}")).unwrap_or_default();
+                let link = match (d.pcie_gen, d.pcie_lanes) {
+                    (Some(g), Some(n)) => format!(" PCIe {g}.0 x{n}"),
+                    _ => String::new(),
+                };
+                println!("Model disk {} · {} free · {media}{bus}{link} · ~{:.1} GB/s read", d.mount, gb(d.available), d.read_speed_bps() as f64 / 1e9);
             }
             println!("Backends: {}", hw.recommended_backends.iter().map(|b| b.as_str()).collect::<Vec<_>>().join(" > "));
             println!("Data dir: {}", data_dir().display());

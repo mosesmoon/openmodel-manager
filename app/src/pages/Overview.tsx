@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { api, Engines, gb, Hardware, JitStatus, NamedEndpoint, VramUse } from "../api";
+import { api, BUS_LABEL, DiskInfo, Engines, gb, Hardware, JitStatus, NamedEndpoint, VramUse } from "../api";
 import { useApp } from "../App";
-import { Key, useI18n } from "../i18n";
+import { Key, T, useI18n } from "../i18n";
 import { findProvider } from "../providers";
 
 type ProvState = { state: "checking" } | { state: "nokey" } | { state: "ok"; models: string[]; ms: number } | { state: "error"; message: string; ms: number };
@@ -53,7 +53,17 @@ export default function Overview() {
           <div className="card">
             <h3 className="muted">{t("overview.ram")}</h3>
             <div className="big">{gb(hw.ram_total, 0)}</div>
-            <div className="muted small">{hw.ram_type ?? ""} · {gb(hw.ram_available)} free · ~{hw.ram_bandwidth_gbs.toFixed(0)} GB/s</div>
+            <div className="muted small">
+              {[
+                ramKind(hw),
+                ramBus(hw, t),
+                `${gb(hw.ram_available)} ${t("overview.free")}`,
+              ].filter(Boolean).join(" · ")}
+              {" · "}
+              <span title={hw.ram_bandwidth_detected ? undefined : t("overview.bw_typical")}>
+                ~{hw.ram_bandwidth_gbs.toFixed(0)} GB/s{hw.ram_bandwidth_detected ? "" : ` (${t("overview.typical")})`}
+              </span>
+            </div>
           </div>
           <div className="card">
             <h3 className="muted">{t("overview.gpu")}</h3>
@@ -72,6 +82,9 @@ export default function Overview() {
             {hw.model_disk ? (
               <>
                 <div>{hw.model_disk.mount} {hw.model_disk.is_ssd === true ? "SSD" : hw.model_disk.is_ssd === false ? "HDD" : ""}</div>
+                <div className="muted small">
+                  {[diskLink(hw.model_disk), `~${(hw.model_disk.read_bps / 1e9).toFixed(1)} GB/s ${t("overview.read")}`].filter(Boolean).join(" · ")}
+                </div>
                 <div className="muted small">{gb(hw.model_disk.available)} / {gb(hw.model_disk.total)}</div>
               </>
             ) : <div className="muted">—</div>}
@@ -142,6 +155,27 @@ export default function Overview() {
       <ProvidersCard list={settings.endpoints} />
     </>
   );
+}
+
+/** "DDR5-5600", or whatever part of it was detected. */
+function ramKind(hw: Hardware): string {
+  if (hw.ram_type && hw.ram_speed_mts) return `${hw.ram_type}-${hw.ram_speed_mts}`;
+  return hw.ram_type ?? (hw.ram_speed_mts ? `${hw.ram_speed_mts} MT/s` : "");
+}
+
+/** Channel count for DIMMs, bus width for soldered LPDDR. */
+function ramBus(hw: Hardware, t: T): string {
+  const bits = hw.ram_bus_bits;
+  if (!bits) return "";
+  if (hw.ram_type?.toUpperCase().startsWith("LPDDR")) return `${bits}-bit`;
+  return t("overview.channels").replace("{n}", String(bits / 64));
+}
+
+/** "NVMe PCIe 4.0 x4". */
+function diskLink(d: DiskInfo): string {
+  const bus = d.bus ? BUS_LABEL[d.bus] : "";
+  const link = d.pcie_gen && d.pcie_lanes ? `PCIe ${d.pcie_gen}.0 x${d.pcie_lanes}` : "";
+  return [bus, link].filter(Boolean).join(" ");
 }
 
 function ProvidersCard({ list }: { list: NamedEndpoint[] }) {

@@ -7,7 +7,7 @@
 | 模組 | 內容 | 測試 |
 |---|---|---|
 | `config` | 設定檔、資料夾位置（`OPENMODEL_HOME`、可攜模式 `portable.txt`）、LAN、GPU 手動覆寫、每個模型的自訂參數、GitHub 鏡像前綴（預設空白） | 2 |
-| `hardware` | NVIDIA（nvidia-smi）、AMD/Intel（Linux sysfs，APU 用 GTT 判斷共用記憶體；Windows 讀顯示卡登錄檔 64-bit VRAM）、Apple Silicon；SSD/HDD、RAM 類型（DDR4/5）、即時 VRAM | 4 |
+| `hardware` | NVIDIA（nvidia-smi）、AMD/Intel（Linux sysfs，APU 用 GTT 判斷共用記憶體；Windows 讀顯示卡登錄檔 64-bit VRAM）、Apple Silicon；即時 VRAM。記憶體頻寬＝SMBIOS 模組的實際速度（MT/s）× 匯流排寬度：DIMM 每支佔一個 64-bit 通道（上限依 CPU 平台，一般桌機 2、Threadripper 4／8、EPYC 12），焊死的 LPDDR 把各顆粒寬度相加；來源為 Linux udev（`/run/udev/data/+dmi:id`，免 root）→ `udevadm` → `dmidecode`、Windows `Win32_PhysicalMemory`、Intel Mac `system_profiler`；讀不到時依記憶體類型給典型值並標示「估計」。APU 的 GPU 頻寬改用偵測到的記憶體頻寬。模型硬碟：匯流排（NVMe／SATA／USB／Thunderbolt／Apple／eMMC）與 NVMe 的 PCIe 世代與通道數（Linux sysfs，含 dm-crypt／LVM／NVMe multipath；Windows `Get-Disk`／`Get-PhysicalDisk`／PnP 連結速度；macOS `diskutil`），讀取速度＝PCIe 頻寬 × 0.85，其他依匯流排給典型值 | 13 |
 | `gguf` | GGUF v1–v3 header、metadata、tensor 表；分卷合併；每層 / 專家權重大小；`kv_layers`（逐層 head_count_kv 或 `full_attention_interval`）；擴散 / mmproj 偵測 | 6 |
 | `catalog` | 內建 16 個 LLM（`data/catalog.json`，描述重新撰寫為 zh-TW / en）；量化大小估算；下載前的層配置估計 | 3 |
 | `tiering` | 全放 GPU → MoE `--n-cpu-moe` → 稠密 `-ngl` → mmap 溢出到硬碟；KV 大小；tok/s 估算；自動 context（不降速的最大值）；相容模式 1–5；自訂參數合併（同名覆寫、指定 `-ngl/-ot/--n-cpu-moe` 時停用自動配置） | 8 |
@@ -58,6 +58,7 @@
 - sd-server 的元件參數名稱（`--llm`、`--llm_vision`、`--clip_l`、`--t5xxl`、`--vae`）以 stable-diffusion.cpp 現行版本為準，需實測。
 - Strata：安裝流程已實測（下載、SHA-256、簽章、`launch --help` 參數）；尚未用真的模型啟動過（需要 Qwen3.8-Flash-Next / Qwen3.6-35B-A3B / DeepSeekV4.1-Flash 的檔案，第一次啟動會再下載 GPU 引擎）。
 - tok/s 估算的效率係數（GPU 0.65、CPU 0.55）需用三台測試機的實測值校正。
+- 記憶體與硬碟偵測：解析器以各系統的真實輸出格式做單元測試，Windows 部分以交叉編譯通過 clippy；尚未在實機上確認 Windows 的 PnP 連結速度、Linux udev 記憶體欄位與 macOS `diskutil`。
 
 建議的測試指令（每台機器）：
 
