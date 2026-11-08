@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { inBrowser, pickPath, reveal } from "../bridge";
-import { api, CatalogEntry, DiskInfo, driveKind, gb, HfModel, LocalModel, ManagedModel, MediaModel, RepoListing } from "../api";
+import { api, CatalogEntry, DiskInfo, driveKind, gb, Hardware, HfModel, LocalModel, ManagedModel, MediaModel, RepoListing, Tier, VramUse } from "../api";
 import { useApp } from "../App";
 import { Key, useI18n } from "../i18n";
 
@@ -29,9 +29,8 @@ function OriginPill({ code }: { code?: string | null }) {
   return <span className="pill origin" title={t("models.origin_tip").replace("{country}", countryName(code, lang))}>{originBadge(code, lang)}</span>;
 }
 
-/** Country filter: a drop-down list of check boxes. None ticked shows every country. */
-function CountryPicker({ all, chosen, count, onChange }: { all: string[]; chosen: string[]; count: (o: string) => number; onChange: (v: string[]) => void }) {
-  const { t, lang } = useI18n();
+/** A chip that opens a menu; a click outside closes it. */
+function Dropdown({ label, on, children }: { label: string; on: boolean; children: ReactNode }) {
   const ref = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -40,19 +39,163 @@ function CountryPicker({ all, chosen, count, onChange }: { all: string[]; chosen
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, []);
-  const label = chosen.length === 0 ? t("models.country_all") : chosen.map((o) => originBadge(o, lang)).join("、");
   return (
     <details className="dropdown" ref={ref}>
-      <summary className={"chip" + (chosen.length ? " on" : "")}>{t("models.country")}：{label} ▾</summary>
-      <div className="menu">
-        {all.map((o) => (
-          <label key={o} className="check">
-            <input type="checkbox" checked={chosen.includes(o)} onChange={() => onChange(chosen.includes(o) ? chosen.filter((x) => x !== o) : [...chosen, o])} />
-            {originBadge(o, lang)} <span className="muted">{count(o)}</span>
-          </label>
-        ))}
-      </div>
+      <summary className={"chip" + (on ? " on" : "")}>{label} ▾</summary>
+      <div className="menu">{children}</div>
     </details>
+  );
+}
+
+/** Country filter: a drop-down list of check boxes. None ticked shows every country. */
+function CountryPicker({ all, chosen, count, onChange }: { all: string[]; chosen: string[]; count: (o: string) => number; onChange: (v: string[]) => void }) {
+  const { t, lang } = useI18n();
+  const label = chosen.length === 0 ? t("models.country_all") : chosen.map((o) => originBadge(o, lang)).join("、");
+  return (
+    <Dropdown label={`${t("models.country")}：${label}`} on={chosen.length > 0}>
+      {all.map((o) => (
+        <label key={o} className="check">
+          <input type="checkbox" checked={chosen.includes(o)} onChange={() => onChange(chosen.includes(o) ? chosen.filter((x) => x !== o) : [...chosen, o])} />
+          {originBadge(o, lang)} <span className="muted">{count(o)}</span>
+        </label>
+      ))}
+    </Dropdown>
+  );
+}
+
+type SortKey = "score" | "name" | "size";
+const SORT_KEYS: SortKey[] = ["score", "name", "size"];
+type Item = { kind: "catalog"; m: CatalogEntry } | { kind: "managed"; m: ManagedModel };
+const TIER_RANK: Record<Tier, number> = { crawl: 0, slow: 1, ok: 2, fast: 3 };
+const GIB = 1024 ** 3;
+
+const bestFit = (m: CatalogEntry) => m.fits.find((f) => f.quant === m.recommended);
+// The recommended quant, not the one picked in the card, so cards don't jump around.
+const itemSize = (i: Item) => (i.kind === "catalog" ? (bestFit(i.m)?.size_bytes ?? 0) : (i.m.sets[1] ?? i.m.sets[0]).disk_gb * GIB);
+const byName = (a: Item, b: Item) => a.m.name.localeCompare(b.m.name, undefined, { numeric: true });
+
+function byScore(a: Item, b: Item) {
+  if (a.kind !== "catalog" || b.kind !== "catalog") return 0;
+  const [x, y] = [bestFit(a.m), bestFit(b.m)];
+  return (x ? TIER_RANK[x.tier] : -1) - (y ? TIER_RANK[y.tier] : -1) || a.m.params_b - b.m.params_b || (x?.est_tps ?? 0) - (y?.est_tps ?? 0);
+}
+
+function sortItems(items: Item[], key: SortKey, desc: boolean) {
+  const compare = key === "score" ? byScore : key === "name" ? byName : (a: Item, b: Item) => itemSize(a) - itemSize(b);
+  return [...items].sort((a, b) => {
+    // Strata-managed models have no speed estimate to rank them by.
+    if (key === "score" && a.kind !== b.kind) return a.kind === "managed" ? 1 : -1;
+    const d = compare(a, b);
+    return (desc ? -d : d) || byName(a, b);
+  });
+}
+
+function SortPicker({ sortKey, desc, onKey, onDesc }: { sortKey: SortKey; desc: boolean; onKey: (k: SortKey) => void; onDesc: (d: boolean) => void }) {
+  const { t } = useI18n();
+  return (
+    <Dropdown label={`${t("models.sort")}：${t(`models.sort_${sortKey}`)} ${desc ? "↓" : "↑"}`} on={sortKey !== "score" || !desc}>
+      {[false, true].map((d) => (
+        <label key={String(d)} className="check">
+          <input type="radio" name="sort-dir" checked={desc === d} onChange={() => onDesc(d)} />
+          {t(d ? "models.sort_desc" : "models.sort_asc")}
+        </label>
+      ))}
+      <div className="menu-sep" />
+      {SORT_KEYS.map((k) => (
+        <label key={k} className="check">
+          <input type="radio" name="sort-key" checked={sortKey === k} onChange={() => onKey(k)} />
+          {t(`models.sort_${k}`)}
+        </label>
+      ))}
+    </Dropdown>
+  );
+}
+
+/** What this computer offers and what the catalog's plans make of it. */
+function HardwareCard({ hw, vram, list, busy, onRedetect }: { hw: Hardware; vram: VramUse[]; list: CatalogEntry[]; busy: boolean; onRedetect: () => void }) {
+  const { t } = useI18n();
+  const { go } = useApp();
+  const gpu = [...hw.gpus].sort((a, b) => b.vram_total - a.vram_total)[0];
+  const disk = hw.model_disk;
+  const fits = list.flatMap((m) => {
+    const f = bestFit(m);
+    return f ? [{ m, f }] : [];
+  });
+  const biggest = <T extends { m: CatalogEntry }>(xs: T[]) => xs.reduce<T | undefined>((b, x) => (!b || x.m.params_b > b.m.params_b ? x : b), undefined);
+  const onGpu = gpu ? biggest(fits.filter(({ f }) => f.ram_bytes === 0 && f.disk_bytes === 0)) : undefined;
+  const moe = biggest(fits.filter(({ m, f }) => m.active_b && f.disk_bytes === 0));
+  const headline = !gpu ? t("models.hw_no_gpu") : onGpu ? t("models.hw_fit_gpu").replace("{b}", String(onGpu.m.params_b)) : t("models.hw_fit_none");
+
+  // Shared memory has no separate GPU segment.
+  const vramBytes = gpu && !gpu.unified_memory ? gpu.vram_total : 0;
+  const ramBytes = hw.ram_available;
+  const DISK_PCT = 20;
+  const gpuPct = vramBytes ? Math.max(18, (vramBytes / (vramBytes + ramBytes)) * (100 - DISK_PCT)) : 0;
+  const ramPct = 100 - DISK_PCT - gpuPct;
+  const pinAt = (size: number) => {
+    if (size <= vramBytes) return (size / vramBytes) * gpuPct;
+    if (size <= vramBytes + ramBytes) return gpuPct + ((size - vramBytes) / ramBytes) * ramPct;
+    return gpuPct + ramPct + DISK_PCT * Math.min(1, (size - vramBytes - ramBytes) / Math.max(1, disk?.available ?? 1));
+  };
+  const pin = moe ? pinAt(moe.f.size_bytes) : null;
+  const used = gpu && vram.find((v) => v.name === gpu.name)?.used;
+
+  return (
+    <div className="card hwcard" style={{ marginBottom: 14 }}>
+      <div className="stack">
+        <h2 className="hwhead">{headline}</h2>
+        <div className="muted">
+          {t("models.hw_spill")}
+          {moe && t("models.hw_moe_max").replace("{name}", moe.m.name).replace("{b}", String(moe.m.params_b))}
+        </div>
+        <div className={"hwbar" + (pin === null ? "" : " pinned")}>
+          {pin !== null && moe && (
+            <>
+              <span className="hwpin-label" style={{ left: `${pin}%`, transform: pin > 60 ? "translateX(calc(-100% + 6px))" : pin < 40 ? "translateX(-6px)" : "translateX(-50%)" }}>{moe.m.name} · {gb(moe.f.size_bytes, 0)}</span>
+              <span className="hwpin" style={{ left: `${pin}%` }} />
+            </>
+          )}
+          {gpuPct > 0 && <div className="seg g" style={{ width: `${gpuPct}%` }}><b>{t("models.hw_gpu")}</b>{gb(vramBytes, 0)}</div>}
+          <div className="seg r" style={{ width: `${ramPct}%` }}><b>{t("run.ram")}</b>{gb(ramBytes, 0)}</div>
+          <div className="seg d" style={{ width: `${DISK_PCT}%` }}><b>{t("models.hw_disk_short")}</b>{t("models.hw_overflow")}</div>
+        </div>
+        <div className="muted small">{t("models.hw_order")}</div>
+      </div>
+      <div className="hwlist">
+        <div className="hwrow">
+          <span className="muted">{t("models.hw_gpu")}</span>
+          <div>
+            <div>{gpu ? gpu.name : t("models.hw_none")}</div>
+            {gpu && <div className="muted small">{t("models.hw_vram").replace("{n}", gb(gpu.vram_total, 0))}{typeof used === "number" ? ` · ${t("models.hw_used").replace("{n}", gb(used, 0))}` : ""}</div>}
+          </div>
+        </div>
+        <div className="hwrow">
+          <span className="muted">{t("models.hw_cpu")}</span>
+          <div>
+            <div>{hw.cpu_name}</div>
+            <div className="muted small">{t("models.hw_cores").replace("{c}", String(hw.cpu_cores)).replace("{t}", String(hw.cpu_threads))}</div>
+          </div>
+        </div>
+        <div className="hwrow">
+          <span className="muted">{t("run.ram")}</span>
+          <div>
+            <div>{gb(hw.ram_total, 0)}{hw.ram_type ? ` ${hw.ram_type}` : ""}</div>
+            <div className="muted small">{t("models.hw_free").replace("{n}", gb(hw.ram_available, 0))}</div>
+          </div>
+        </div>
+        <div className="hwrow">
+          <span className="muted">{t("models.hw_model_disk")}</span>
+          <div>
+            <div>{disk ? disk.mount : t("models.hw_none")}</div>
+            <div className="muted small">
+              {disk && `${t("models.hw_left").replace("{n}", gb(disk.available, 0))}${driveKind(disk) ? ` · ${driveKind(disk)}` : ""} · `}
+              <button className="link" onClick={() => go("settings")}>{t("models.hw_change")}</button>
+            </div>
+          </div>
+        </div>
+        <button className="link" disabled={busy} onClick={onRedetect}>{busy ? t("common.loading") : t("models.hw_redetect")}</button>
+      </div>
+    </div>
   );
 }
 const tagLabel = (t: (k: Key) => string, x: string) => (TAGS.includes(x) ? t(("tag." + x) as Key) : x);
@@ -83,6 +226,11 @@ export default function Models() {
 function Recommended({ only }: { only?: string }) {
   const { t } = useI18n();
   const { track, fail } = useApp();
+  const [hw, setHw] = useState<Hardware | null>(null);
+  const [vram, setVram] = useState<VramUse[]>([]);
+  const [detecting, setDetecting] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("score");
+  const [desc, setDesc] = useState(true);
   const [list, setList] = useState<CatalogEntry[] | null>(null);
   const [choice, setChoice] = useState<Record<string, string>>({});
   const [vision, setVision] = useState(true);
@@ -93,11 +241,25 @@ function Recommended({ only }: { only?: string }) {
   const [hasStrata, setHasStrata] = useState(false);
   const keep = <T extends { tags: string[] }>(xs: T[]) => (only ? xs.filter((m) => m.tags.includes(only)) : xs);
   const load = () => api.catalog().then((l) => setList(keep(l)), fail);
+  const loadManaged = () => api.strataManaged().then((m) => setManaged(keep(m)), () => {});
   useEffect(() => {
     load();
-    api.strataManaged().then((m) => setManaged(keep(m)), () => {});
+    loadManaged();
     api.engines().then((e) => setHasStrata(!!e.strata), () => {});
+    if (!only) {
+      api.hardware().then(setHw, fail);
+      api.liveVram().then(setVram, () => {});
+    }
   }, []);
+  // The plans on the cards come from the cached hardware, so redo them too.
+  const redetect = () => {
+    setDetecting(true);
+    api.hardware(true).then((h) => {
+      setHw(h);
+      api.liveVram().then(setVram, () => {});
+      return Promise.all([load(), loadManaged()]);
+    }).catch(fail).finally(() => setDetecting(false));
+  };
   if (!list) return <p className="muted">{t("common.loading")}</p>;
   const toggle = (x: string) => setTags(tags.includes(x) ? tags.filter((y) => y !== x) : [...tags, x]);
   // Countries are alternatives (USA or China); capability tags must all match.
@@ -108,8 +270,10 @@ function Recommended({ only }: { only?: string }) {
   const byOrigin = (o: string) => list.filter((m) => m.origin === o).length + managed.filter((m) => m.origin === o).length;
   allOrigins.sort((a, b) => byOrigin(b) - byOrigin(a));
   const count = (x: string) => list.filter((m) => m.tags.includes(x)).length + managed.filter((m) => m.tags.includes(x)).length;
+  const items = sortItems([...shown.map((m): Item => ({ kind: "catalog", m })), ...shownManaged.map((m): Item => ({ kind: "managed", m }))], sortKey, desc);
   return (
     <>
+      {!only && hw && <HardwareCard hw={hw} vram={vram} list={list} busy={detecting} onRedetect={redetect} />}
       <div className="chips" style={{ marginBottom: 10 }}>
         <span className="muted small">{t("models.filter")}</span>
         <button className={"chip" + (tags.length === 0 && !strataOnly && origins.length === 0 ? " on" : "")} onClick={() => { setTags([]); setStrataOnly(false); setOrigins([]); }}>{t("models.filter_all")}</button>
@@ -122,14 +286,17 @@ function Recommended({ only }: { only?: string }) {
           Strata <span className="muted">{list.filter((m) => m.strata).length + managed.length}</span>
         </button>
         <CountryPicker all={allOrigins} chosen={origins} count={byOrigin} onChange={setOrigins} />
+        <SortPicker sortKey={sortKey} desc={desc} onKey={setSortKey} onDesc={setDesc} />
       </div>
       <label className="check" style={{ marginBottom: 12 }}>
         <input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />
         {t("models.with_vision")}
       </label>
-      {shown.length + shownManaged.length === 0 && <p className="muted">{t("models.filter_none")}</p>}
+      {items.length === 0 && <p className="muted">{t("models.filter_none")}</p>}
       <div className="grid">
-        {shown.map((m) => {
+        {items.map((item) => {
+          if (item.kind === "managed") return <ManagedCard key={item.m.id} m={item.m} hasStrata={hasStrata} />;
+          const m = item.m;
           const q = choice[m.id] ?? m.recommended ?? m.quants[0];
           const fit = m.fits.find((f) => f.quant === q);
           const sp = m.strata;
@@ -193,7 +360,6 @@ function Recommended({ only }: { only?: string }) {
             </div>
           );
         })}
-        {shownManaged.map((m) => <ManagedCard key={m.id} m={m} hasStrata={hasStrata} />)}
       </div>
     </>
   );

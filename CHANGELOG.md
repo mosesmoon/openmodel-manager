@@ -9,6 +9,10 @@ This file records the changes in each version, loosely following [Keep a Changel
 
 ## [Unreleased]
 
+### 新增
+- 「模型 → 推薦」最上方顯示偵測到的硬體環境：這台電腦適合多大的模型、顯示卡／記憶體／硬碟的容量條，以及「重新偵測硬體」。
+- 模型卡預設依推薦度由高到低排列；國家選單右邊新增排序選單，可依推薦度、名稱、模型大小排序，選單最上方可切換升冪或降冪。
+
 ### 變更
 - 速度估算改用偵測到的記憶體頻寬：讀取每支記憶體的實際速度（MT/s）與通道數，算出頻寬（例如 DDR5-5600 雙通道約 90 GB/s、單通道只有一半）。以前 Windows / Linux 一律當作 60 GB/s。內建顯示卡（APU）也改用這個頻寬。讀不到時依記憶體類型給典型值，「概覽」頁會標示「估計」。
 - 模型硬碟會分辨 NVMe（含 PCIe 世代與通道數，例如 PCIe 4.0 x4 約 6.7 GB/s）、SATA SSD、USB、Thunderbolt 與 HDD，用來估算載入時間與從硬碟讀取時的速度。以前所有 SSD 都當作 1.5 GB/s。
@@ -17,6 +21,10 @@ This file records the changes in each version, loosely following [Keep a Changel
 ### 修正
 - 在設定中更換模型資料夾後，估算仍沿用原本那顆硬碟（例如資料夾已移到 F 槽，卻仍以 C 槽計算），要重新開啟程式才會更新。現在儲存設定時就會重新偵測。
 - 模型卡與「執行」頁的資源條把從硬碟讀取的部分一律標成「NVMe」；現在顯示實際的硬碟類型（NVMe、SATA SSD、HDD、USB…）。
+
+### Added
+- Models → Recommended now opens with the detected hardware: how large a model this computer suits, a capacity bar for GPU, RAM and disk, and "Detect hardware again".
+- Model cards are listed best recommendation first, and a sort menu next to the country filter orders them by recommendation, name or model size, with ascending and descending at the top of the menu.
 
 ### Changed
 - Speed estimates use the detected memory bandwidth: the running speed (MT/s) and channel count of the installed memory give the bandwidth (dual-channel DDR5-5600 is about 90 GB/s; a single channel is half that). Windows and Linux used to assume 60 GB/s. Integrated GPUs (APUs) use this bandwidth too. When it can't be read, a typical value for the memory type is used and the Overview page marks it as typical.
