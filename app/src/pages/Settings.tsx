@@ -95,6 +95,8 @@ export default function SettingsPage() {
         <div className="muted small">{t("settings.privacy")}</div>
       </div>
 
+      <ChatsCard on={s.save_chats} setOn={(v) => set("save_chats", v)} />
+
       <WebCard s={s} set={set} />
 
       <div className="card stack">
@@ -311,6 +313,29 @@ function EndpointsCard({ list, setList }: { list: NamedEndpoint[]; setList: (l: 
         </select>
       </div>
       <div className="muted small">{t("settings.no_subscription")}</div>
+    </div>
+  );
+}
+
+function ChatsCard({ on, setOn }: { on: boolean; setOn: (v: boolean) => void }) {
+  const { t } = useI18n();
+  const { fail } = useApp();
+  const [done, setDone] = useState(false);
+  const wipe = () => {
+    if (!confirm(t("settings.delete_chats_confirm"))) return;
+    api.chatDeleteAll().then(() => setDone(true), fail);
+  };
+  return (
+    <div className="card stack">
+      <div className="row spread">
+        <h2 style={{ margin: 0 }}>{t("settings.save_chats")}</h2>
+        <Switch on={on} onChange={setOn} label={t("settings.save_chats")} />
+      </div>
+      <div className="muted small">{t("settings.save_chats_hint")}</div>
+      <div className="row">
+        <button className="btn danger" onClick={() => { setDone(false); wipe(); }}>{t("settings.delete_chats")}</button>
+        {done && <span className="muted small">{t("settings.chats_deleted")}</span>}
+      </div>
     </div>
   );
 }

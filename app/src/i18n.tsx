@@ -179,6 +179,11 @@ const zh = {
   "chat.attach": "附加圖片",
   "chat.max_rounds": "已達工具呼叫上限，停止。",
   "chat.cancelled": "已停止。",
+  "chat.history": "對話紀錄",
+  "chat.history_empty": "還沒有儲存的對話。",
+  "chat.delete_confirm": "要刪除這個對話紀錄嗎？無法復原。",
+  "chat.source_missing": "找不到原本的模型來源，已改用本機模型：",
+  "chat.workspace_other": "這個對話原本的工作資料夾是：",
   "chat.no_local": "沒有執行中的本機模型。到「執行」頁啟動一個，或選擇遠端 API。",
   "approval.title": "需要你的同意",
   "approval.once": "允許這次",
@@ -277,6 +282,11 @@ const zh = {
   "settings.add": "新增",
   "settings.name": "名稱",
   "settings.privacy": "本程式不收集任何使用資料，只連線到上面設定的位址。",
+  "settings.save_chats": "儲存對話紀錄",
+  "settings.save_chats_hint": "紀錄以明文 JSON 存在本機的資料資料夾，內容包含對話中傳送的圖片；API key 不會存入紀錄。",
+  "settings.delete_chats": "刪除所有對話紀錄",
+  "settings.delete_chats_confirm": "要刪除所有對話紀錄嗎？無法復原。",
+  "settings.chats_deleted": "已刪除所有對話紀錄。",
 } as const;
 
 export type Key = keyof typeof zh;
@@ -458,6 +468,11 @@ const en: Record<Key, string> = {
   "chat.attach": "Attach image",
   "chat.max_rounds": "Tool-call limit reached; stopped.",
   "chat.cancelled": "Stopped.",
+  "chat.history": "History",
+  "chat.history_empty": "No saved conversations yet.",
+  "chat.delete_confirm": "Delete this conversation? This cannot be undone.",
+  "chat.source_missing": "The original model source no longer exists; using the local model instead:",
+  "chat.workspace_other": "This conversation was started in a different workspace folder:",
   "chat.no_local": "No local model is running. Start one on the Run page, or pick a remote API.",
   "approval.title": "Needs your approval",
   "approval.once": "Allow once",
@@ -556,6 +571,11 @@ const en: Record<Key, string> = {
   "settings.add": "Add",
   "settings.name": "Name",
   "settings.privacy": "This app collects no usage data and only connects to the addresses set above.",
+  "settings.save_chats": "Save chat history",
+  "settings.save_chats_hint": "History is stored on this computer as plain JSON in the data folder, including images sent in chats. API keys are not stored.",
+  "settings.delete_chats": "Delete all chat history",
+  "settings.delete_chats_confirm": "Delete all chat history? This cannot be undone.",
+  "settings.chats_deleted": "All chat history deleted.",
 };
 
 const dicts: Record<Lang, Record<Key, string>> = { "zh-TW": zh, en };

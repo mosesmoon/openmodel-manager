@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api, ApprovalRequest, ChatEvent, Endpoint, errText, Message, on } from "../api";
+import { api, ApprovalRequest, ChatEvent, ChatMeta, Endpoint, errText, Message, on } from "../api";
 import { useApp } from "../App";
 import { useI18n } from "../i18n";
 import { Markdown } from "../markdown";
@@ -23,9 +23,14 @@ interface Props {
 const newId = () => crypto.randomUUID();
 
 export default function ChatView({ mode, workspace, onPlan, toolbar }: Props) {
-  const { t } = useI18n();
-  const { settings, llm } = useApp();
+  const { t, lang } = useI18n();
+  const { settings, llm, fail } = useApp();
+  // `session` keys streaming events and tool approvals; `convId` names the saved record.
+  // Loading a record keeps neither, so approvals never carry over between conversations.
   const [session, setSession] = useState(newId);
+  const [convId, setConvId] = useState<string>(newId);
+  const [list, setList] = useState<ChatMeta[]>([]);
+  const [listOpen, setListOpen] = useState(false);
   const [items, setItems] = useState<Item[]>([]);
   const [history, setHistory] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -37,6 +42,24 @@ export default function ChatView({ mode, workspace, onPlan, toolbar }: Props) {
   const [stats, setStats] = useState<string>("");
   const scroller = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const convRef = useRef(convId);
+  convRef.current = convId;
+  const saveDue = useRef(false);
+  const saving = settings.save_chats;
+
+  const refresh = () => api.chatList(mode).then(setList, fail);
+  useEffect(() => { if (saving) refresh(); }, [saving]);
+
+  // Save only once the turn is over, from the committed state, never mid-stream.
+  useEffect(() => {
+    if (busy || !saveDue.current) return;
+    saveDue.current = false;
+    if (!saving || items.length === 0) return;
+    api.chatSave({
+      v: 1, id: convId, mode, title: "", created: 0, updated: 0, source,
+      workspace: mode === "agent" ? workspace : undefined, history, items,
+    }).then(refresh, fail);
+  }, [busy]);
 
   useEffect(() => {
     const subs = [
@@ -74,6 +97,7 @@ export default function ChatView({ mode, workspace, onPlan, toolbar }: Props) {
       ? [{ type: "text", text }, ...images.map((url) => ({ type: "image_url", image_url: { url } }))]
       : text;
     const msgs: Message[] = [...history, { role: "user", content }];
+    const cid = convId;
     setItems((xs) => [...xs, { kind: "user", text, images }]);
     setInput("");
     setImages([]);
@@ -83,11 +107,15 @@ export default function ChatView({ mode, workspace, onPlan, toolbar }: Props) {
       const out = mode === "agent"
         ? await api.agentSend(session, endpoint(), msgs, workspace ?? "")
         : await api.chatSend(session, endpoint(), msgs, tools);
-      setHistory(out);
+      if (convRef.current === cid) setHistory(out);
     } catch (e) {
-      setItems((xs) => [...xs, { kind: "notice", text: errText(e), bad: true }]);
-      setHistory(msgs);
+      if (convRef.current === cid) {
+        setItems((xs) => [...xs, { kind: "notice", text: errText(e), bad: true }]);
+        setHistory(msgs);
+      }
     } finally {
+      // A conversation reset or deleted mid-reply must not be saved back.
+      saveDue.current = convRef.current === cid;
       setBusy(false);
       setApprovals([]);
     }
@@ -101,11 +129,52 @@ export default function ChatView({ mode, workspace, onPlan, toolbar }: Props) {
   const reset = () => {
     if (busy) api.chatStop(session);
     setSession(newId());
+    setConvId(newId());
     setItems([]);
     setHistory([]);
     setApprovals([]);
     setStats("");
     onPlan?.([]);
+  };
+
+  const open = async (id: string) => {
+    if (busy || id === convId) return;
+    let rec;
+    try {
+      rec = await api.chatLoad(id);
+    } catch (e) {
+      return fail(e);
+    }
+    const known = rec.source === "local" || settings.endpoints.some((x) => x.name === rec.source);
+    const notes: Item[] = [];
+    if (!known) notes.push({ kind: "notice", text: `${t("chat.source_missing")} ${rec.source}` });
+    if (mode === "agent" && rec.workspace && rec.workspace !== workspace) notes.push({ kind: "notice", text: `${t("chat.workspace_other")} ${rec.workspace}` });
+    setSession(newId());
+    setConvId(rec.id);
+    setItems([...(rec.items as Item[]), ...notes]);
+    setHistory(rec.history as Message[]);
+    setSource(known ? rec.source : "local");
+    setApprovals([]);
+    setStats("");
+    onPlan?.([]);
+  };
+
+  const remove = async (m: ChatMeta) => {
+    if (!confirm(t("chat.delete_confirm"))) return;
+    try {
+      await api.chatDelete(m.id);
+    } catch (e) {
+      return fail(e);
+    }
+    if (m.id === convId) reset();
+    refresh();
+  };
+
+  const when = (secs: number) => {
+    const d = new Date(secs * 1000);
+    return d.toDateString() === new Date().toDateString()
+      ? d.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" })
+      : d.toLocaleDateString(lang, { month: "numeric", day: "numeric" });
   };
 
   const attach = (files: FileList | null) => {
@@ -120,6 +189,30 @@ export default function ChatView({ mode, workspace, onPlan, toolbar }: Props) {
   const blocked = source === "local" && !localReady;
 
   return (
+    <div className="chatwrap">
+      {saving && (
+        <aside className={"chatlist" + (listOpen ? " open" : "")}>
+          <div className="chatlist-head">
+            <button className="chatlist-toggle" aria-expanded={listOpen} onClick={() => setListOpen(!listOpen)}>
+              <span className="caret">{listOpen ? "▾" : "▸"}</span> {t("chat.history")} ({list.length})
+            </button>
+            <b className="chatlist-title">{t("chat.history")}</b>
+            <button className="btn sm" onClick={reset}>＋ {t("chat.new")}</button>
+          </div>
+          <div className="chatlist-body">
+            {list.length === 0 && <div className="muted small" style={{ padding: "4px 6px" }}>{t("chat.history_empty")}</div>}
+            {list.map((m) => (
+              <div key={m.id} className={"chatitem" + (m.id === convId ? " on" : "")}>
+                <button className="chatitem-main" disabled={busy} title={m.title} onClick={() => { open(m.id); setListOpen(false); }}>
+                  <span className="ellipsis">{m.title || "—"}</span>
+                  <span className="muted small">{when(m.updated)}</span>
+                </button>
+                <button className="chatitem-del" title={t("common.remove")} aria-label={t("common.remove")} onClick={() => remove(m)}>×</button>
+              </div>
+            ))}
+          </div>
+        </aside>
+      )}
     <div className="chat">
       <div className="row">
         <label className="row small">
@@ -181,6 +274,7 @@ export default function ChatView({ mode, workspace, onPlan, toolbar }: Props) {
           <button className="btn primary" disabled={blocked || (mode === "agent" && !workspace)} onClick={send}>{t("common.send")}</button>
         )}
       </div>
+    </div>
     </div>
   );
 }

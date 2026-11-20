@@ -30,7 +30,8 @@
       { "name": "OpenAI", "provider": "openai", "kind": "openai", "base_url": "https://api.openai.com/v1", "api_key": null, "model": "" },
       { "name": "Office server", "provider": "custom", "kind": "openai", "base_url": "http://192.168.1.20:8000/v1", "api_key": null, "model": "Qwen3-32B" }
     ],
-    "agent_workspace": "F:\\Projects\\demo"
+    "agent_workspace": "F:\\Projects\\demo",
+    "save_chats": true
   },
   "paths": { "data_dir": "C:\\Users\\user\\AppData\\Roaming\\openmodel", "version": "0.1.0" },
   "library": [

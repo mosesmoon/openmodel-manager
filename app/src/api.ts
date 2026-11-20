@@ -39,6 +39,23 @@ export interface Settings {
   custom_args: Record<string, string>;
   endpoints: NamedEndpoint[];
   agent_workspace: string | null;
+  save_chats: boolean;
+}
+
+export type ChatMode = "chat" | "agent";
+export interface ChatMeta { id: string; title: string; mode: ChatMode; updated: number; source: string }
+/** `history` and `items` are opaque to the backend. */
+export interface ChatRecord {
+  v: number;
+  id: string;
+  mode: ChatMode;
+  title: string;
+  created: number;
+  updated: number;
+  source: string;
+  workspace?: string | null;
+  history: unknown[];
+  items: unknown[];
 }
 
 export interface GpuInfo { vendor: string; name: string; vram_total: number; vram_free: number | null; driver: string | null; unified_memory: boolean; bandwidth_gbs: number }
@@ -188,6 +205,11 @@ export const api = {
   readMedia: (path: string) => invoke<string>("read_media", { path }),
   chatSend: (session: string, endpoint: Endpoint | null, messages: Message[], tools: boolean) => invoke<Message[]>("chat_send", { session, endpoint, messages, tools }),
   agentSend: (session: string, endpoint: Endpoint | null, messages: Message[], workspace: string) => invoke<Message[]>("agent_send", { session, endpoint, messages, workspace }),
+  chatList: (mode?: ChatMode) => invoke<ChatMeta[]>("chat_list", { mode: mode ?? null }),
+  chatLoad: (id: string) => invoke<ChatRecord>("chat_load", { id }),
+  chatSave: (record: ChatRecord) => invoke<void>("chat_save", { record }),
+  chatDelete: (id: string) => invoke<void>("chat_delete", { id }),
+  chatDeleteAll: () => invoke<void>("chat_delete_all"),
   chatStop: (session: string) => invoke<void>("chat_stop", { session }),
   approve: (session: string, id: string, decision: Decision) => invoke<boolean>("approval_resolve", { session, id, decision }),
   endpointModels: (endpoint: Endpoint) => invoke<string[]>("endpoint_models", { endpoint }),

@@ -7,6 +7,7 @@
 
 pub mod agent;
 pub mod catalog;
+pub mod chatlog;
 pub mod config;
 pub mod diffusion;
 pub mod download;

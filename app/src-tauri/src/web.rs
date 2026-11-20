@@ -266,6 +266,11 @@ async fn dispatch(app: &AppHandle, cmd: &str, a: Value) -> Res<Value> {
         "read_media" => out(read_media(st(), arg(&a, "path")?)?),
         "chat_send" => out(chat_send(h(), st(), arg(&a, "session")?, arg(&a, "endpoint")?, arg(&a, "messages")?, arg(&a, "tools")?).await?),
         "agent_send" => out(agent_send(h(), st(), arg(&a, "session")?, arg(&a, "endpoint")?, arg(&a, "messages")?, arg(&a, "workspace")?).await?),
+        "chat_list" => out(chat_list(arg(&a, "mode")?)),
+        "chat_load" => out(chat_load(arg(&a, "id")?)?),
+        "chat_save" => out(chat_save(st(), arg(&a, "record")?)?),
+        "chat_delete" => out(chat_delete(arg(&a, "id")?)?),
+        "chat_delete_all" => out(chat_delete_all()?),
         "chat_stop" => {
             chat_stop(h(), st(), arg(&a, "session")?);
             Ok(Value::Null)

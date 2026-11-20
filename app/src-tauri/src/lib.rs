@@ -9,6 +9,7 @@
 use openmodel_core::{
     agent::{self, AgentToolbox},
     catalog::{Catalog, CatalogModel},
+    chatlog::{self, ChatMeta, ChatMode, ChatRecord},
     config::{data_dir, Settings},
     diffusion::{self, ImageRequest, MediaModel, SdClient, VideoRequest},
     download::{self, DownloadItem},
@@ -960,6 +961,31 @@ async fn agent_send(app: AppHandle, state: State<'_, AppState>, session: String,
 }
 
 #[tauri::command]
+fn chat_list(mode: Option<ChatMode>) -> Vec<ChatMeta> {
+    chatlog::list(&data_dir(), mode)
+}
+
+#[tauri::command]
+fn chat_load(id: String) -> Res<ChatRecord> {
+    chatlog::load(&data_dir(), &id).map_err(errs)
+}
+
+#[tauri::command]
+fn chat_save(state: State<AppState>, record: ChatRecord) -> Res<()> {
+    chatlog::save(&data_dir(), state.settings().save_chats, record).map_err(errs)
+}
+
+#[tauri::command]
+fn chat_delete(id: String) -> Res<()> {
+    chatlog::delete(&data_dir(), &id).map_err(errs)
+}
+
+#[tauri::command]
+fn chat_delete_all() -> Res<()> {
+    chatlog::delete_all(&data_dir()).map_err(errs)
+}
+
+#[tauri::command]
 fn chat_stop(app: AppHandle, state: State<AppState>, session: String) {
     let sess = state.session(&app, &session);
     sess.cancel.lock().unwrap().cancel();
@@ -1036,6 +1062,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             cancel_job,
             get_settings,
+            chat_list,
+            chat_load,
+            chat_save,
+            chat_delete,
+            chat_delete_all,
             save_settings,
             app_paths,
             get_hardware,

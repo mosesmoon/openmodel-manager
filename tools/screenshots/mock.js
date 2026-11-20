@@ -37,6 +37,7 @@
     llm: null,
     sd: null,
     pending: new Map(), // agent session -> resolver, until the approval is answered
+    chats: [],
   };
   const ready = Promise.all([getJson("/__mock/hw.json"), getJson("/__mock/data.json"), getJson("/__mock/catalog.json")]).then(([h, d, c]) => {
     hw = h;
@@ -46,6 +47,13 @@
     const first = d.library[0];
     state.llm = status("ready", { model: first.path, gpu_layers: [49, 49] });
     state.sd = status("stopped", { port: d.settings.image_port, engine: "sd" });
+    const now = Math.floor(Date.now() / 1000);
+    const seed = (id, mode, title, ago) => ({ v: 1, id, mode, title, created: now - ago, updated: now - ago, source: "local", workspace: null, history: [], items: [{ kind: "user", text: title, images: [] }] });
+    state.chats = [
+      seed("00000000-0000-4000-8000-000000000001", "chat", tr("幫我整理這週的會議重點", "Summarize this week's meeting notes"), 600),
+      seed("00000000-0000-4000-8000-000000000002", "chat", tr("解釋量化 Q4_K_M 與 Q8_0 的差別", "Explain Q4_K_M versus Q8_0 quantization"), 90000),
+      seed("00000000-0000-4000-8000-000000000003", "agent", tr("找出專案裡所有 TODO 註解", "Find every TODO comment in the project"), 3000),
+    ];
   });
 
   function status(st, extra = {}) {
@@ -260,6 +268,20 @@
     read_media: () => "",
     chat_send: chatSend,
     agent_send: agentSend,
+    chat_list: ({ mode }) => state.chats.filter((c) => !mode || c.mode === mode).map(({ history, items, ...meta }) => meta).sort((a, b) => b.updated - a.updated),
+    chat_load: ({ id }) => {
+      const c = state.chats.find((x) => x.id === id);
+      if (!c) throw new Error("not found");
+      return clone(c);
+    },
+    chat_save: ({ record }) => {
+      const now = Math.floor(Date.now() / 1000);
+      const i = state.chats.findIndex((x) => x.id === record.id);
+      const title = record.title || String((record.items.find((x) => x.kind === "user") || {}).text || "").slice(0, 40);
+      state.chats[i < 0 ? state.chats.length : i] = { ...clone(record), title, v: 1, created: i < 0 ? now : state.chats[i].created, updated: now };
+    },
+    chat_delete: ({ id }) => { state.chats = state.chats.filter((x) => x.id !== id); },
+    chat_delete_all: () => { state.chats = []; },
     chat_stop: ({ session }) => { state.pending.get(session)?.("deny"); state.pending.delete(session); },
     approval_resolve: ({ session, decision }) => { state.pending.get(session)?.(decision); state.pending.delete(session); return true; },
     endpoint_models: ({ endpoint }) => (endpoint.model ? [endpoint.model] : []),

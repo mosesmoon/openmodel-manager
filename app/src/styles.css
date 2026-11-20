@@ -201,7 +201,28 @@ pre.log { background: var(--code); border: 1px solid var(--line); border-radius:
 code.cmd { display: block; background: var(--code); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; word-break: break-all; }
 
 /* chat */
-.chat { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 10px; }
+.chatwrap { display: flex; flex: 1; min-height: 0; gap: 14px; }
+.chat { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; gap: 10px; }
+.chatlist { flex: none; width: 220px; display: flex; flex-direction: column; min-height: 0; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px; }
+.chatlist-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.chatlist-toggle { display: none; border: 0; background: none; padding: 2px 4px; cursor: pointer; font-weight: 600; color: var(--text); }
+.chatlist-body { flex: 1; min-height: 0; overflow: auto; display: grid; align-content: start; gap: 2px; }
+.chatitem { display: flex; align-items: center; border-radius: 6px; }
+.chatitem:hover { background: var(--panel-2); }
+.chatitem.on { background: var(--accent-soft); }
+.chatitem-main { flex: 1; min-width: 0; display: grid; text-align: left; gap: 1px; border: 0; background: none; padding: 6px 8px; cursor: pointer; color: var(--text); }
+.chatitem-main:disabled { cursor: default; opacity: 0.6; }
+.chatitem.on .chatitem-main { font-weight: 600; }
+.chatitem-del { flex: none; border: 0; background: none; padding: 4px 8px; cursor: pointer; color: var(--muted); border-radius: 6px; }
+.chatitem-del:hover { color: var(--bad); }
+@media (max-width: 760px) {
+  .chatwrap { flex-direction: column; gap: 8px; }
+  .chatlist { width: auto; }
+  .chatlist-toggle { display: block; }
+  .chatlist-title { display: none; }
+  .chatlist-body { display: none; max-height: 34vh; flex: none; }
+  .chatlist.open .chatlist-body { display: grid; }
+}
 .msgs { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px 2px; }
 .msg { max-width: 860px; }
 .msg.user { align-self: flex-end; background: var(--accent-soft); padding: 8px 12px; border-radius: 10px; white-space: pre-wrap; }

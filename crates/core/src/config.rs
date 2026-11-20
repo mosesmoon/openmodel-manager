@@ -77,6 +77,8 @@ pub struct Settings {
     pub endpoints: Vec<NamedEndpoint>,
     /// Folder the Agent page works in.
     pub agent_workspace: Option<PathBuf>,
+    /// Keep finished chats on disk (plain JSON under `chats/`).
+    pub save_chats: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -121,6 +123,7 @@ impl Default for Settings {
             custom_args: HashMap::new(),
             endpoints: vec![],
             agent_workspace: None,
+            save_chats: true,
         }
     }
 }
@@ -359,6 +362,7 @@ Language = 1033
         let s: Settings = serde_json::from_str(r#"{"server_port": 9000}"#).unwrap();
         assert_eq!(s.server_port, 9000);
         assert_eq!(s.image_port, 7860);
+        assert!(s.save_chats);
     }
 
     #[test]

@@ -11,6 +11,7 @@ This file records the changes in each version, loosely following [Keep a Changel
 
 ### 新增
 - 「模型 → 推薦」最上方顯示偵測到的硬體環境：這台電腦適合多大的模型、顯示卡／記憶體／硬碟的容量條，以及「重新偵測硬體」。
+- 對話紀錄會存檔：「對話」與「Agent」頁左側列出之前的對話，可以點選繼續、刪除。紀錄以 JSON 存在本機資料夾（含對話中的圖片），不會存 API key；可在設定關閉，或一次刪除全部。
 - 對話與 Agent 頁的回覆會顯示 Markdown：標題、清單、表格、連結，以及附語言標示與複製按鈕的程式碼區塊。模型輸出的 HTML 只會當成文字顯示；連結用系統瀏覽器開啟，不會載入遠端圖片。
 - 模型卡預設依推薦度由高到低排列；國家選單右邊新增排序選單，可依推薦度、名稱、模型大小排序，選單最上方可切換升冪或降冪。
 
@@ -26,6 +27,7 @@ This file records the changes in each version, loosely following [Keep a Changel
 
 ### Added
 - Models → Recommended now opens with the detected hardware: how large a model this computer suits, a capacity bar for GPU, RAM and disk, and "Detect hardware again".
+- Chat history is saved: the Chat and Agent pages list earlier conversations on the left, to continue or delete. It is stored as JSON in the data folder on this computer (including images sent in chats) and never includes API keys; Settings can turn it off or delete it all.
 - Replies on the Chat and Agent pages render Markdown: headings, lists, tables, links, and code blocks with a language label and a Copy button. HTML in model output is shown as text; links open in the system browser and remote images are not loaded.
 - Model cards are listed best recommendation first, and a sort menu next to the country filter orders them by recommendation, name or model size, with ascending and descending at the top of the menu.
 
