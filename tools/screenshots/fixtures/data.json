@@ -1,0 +1,151 @@
+{
+  "settings": {
+    "models_dir": "F:\\Models",
+    "engines_dir": "F:\\OM\\engines",
+    "outputs_dir": "F:\\OM\\outputs",
+    "hf_endpoint": "https://huggingface.co",
+    "hf_token": null,
+    "github_api": "https://api.github.com",
+    "github_mirror_prefix": "",
+    "ram_reserve_bytes": 4294967296,
+    "vram_reserve_bytes": 1073741824,
+    "language": "zh-TW",
+    "installer_language": null,
+    "server_port": 8080,
+    "image_port": 8188,
+    "lan_access": false,
+    "server_api_key": null,
+    "min_ctx": 0,
+    "jit_api": true,
+    "lan_addresses": [],
+    "web_ui": false,
+    "web_port": 8787,
+    "web_lan": false,
+    "web_addresses": [],
+    "web_password": null,
+    "backend": null,
+    "gpu_override": null,
+    "custom_args": {},
+    "endpoints": [
+      { "name": "OpenAI", "provider": "openai", "kind": "openai", "base_url": "https://api.openai.com/v1", "api_key": null, "model": "" },
+      { "name": "Office server", "provider": "custom", "kind": "openai", "base_url": "http://192.168.1.20:8000/v1", "api_key": null, "model": "Qwen3-32B" }
+    ],
+    "agent_workspace": "F:\\Projects\\demo"
+  },
+  "paths": { "data_dir": "C:\\Users\\user\\AppData\\Roaming\\openmodel", "version": "0.1.0" },
+  "library": [
+    {
+      "name": "Qwen3.6-35B-A3B-UD-Q4_K_XL",
+      "catalog": "qwen3.6-35b-a3b",
+      "path": "F:\\Models\\Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf",
+      "files": ["Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf", "mmproj-F16.gguf"],
+      "size_bytes": 22451970048,
+      "quant": "UD-Q4_K_XL",
+      "mmproj": "F:\\Models\\mmproj-F16.gguf",
+      "external": false,
+      "strata": true
+    },
+    {
+      "name": "Gemma-4-12B-UD-Q4_K_XL",
+      "catalog": "gemma-4-12b",
+      "path": "F:\\Models\\Gemma-4-12B-UD-Q4_K_XL.gguf",
+      "files": ["Gemma-4-12B-UD-Q4_K_XL.gguf", "gemma-mmproj-F16.gguf"],
+      "size_bytes": 7730941133,
+      "quant": "UD-Q4_K_XL",
+      "mmproj": "F:\\Models\\gemma-mmproj-F16.gguf",
+      "external": false
+    },
+    {
+      "name": "Qwen3.5-9B-Q4_K_M",
+      "catalog": "qwen3.5-9b",
+      "path": "F:\\Models\\Qwen3.5-9B-Q4_K_M.gguf",
+      "files": ["Qwen3.5-9B-Q4_K_M.gguf"],
+      "size_bytes": 5798205850,
+      "quant": "Q4_K_M",
+      "mmproj": null,
+      "external": false
+    },
+    {
+      "name": "gpt-oss-20b-Q4_K_M",
+      "catalog": "gpt-oss-20b",
+      "path": "F:\\Models\\gpt-oss-20b-Q4_K_M.gguf",
+      "files": ["gpt-oss-20b-Q4_K_M.gguf"],
+      "size_bytes": 12992276275,
+      "quant": "Q4_K_M",
+      "mmproj": null,
+      "external": false
+    },
+    {
+      "name": "Devstral-Small-2-24B-Q4_K_M",
+      "catalog": "devstral-small-2-24b",
+      "path": "D:\\Shared\\Devstral-Small-2-24B-Q4_K_M.gguf",
+      "files": ["Devstral-Small-2-24B-Q4_K_M.gguf"],
+      "size_bytes": 14333911285,
+      "quant": "Q4_K_M",
+      "mmproj": null,
+      "external": true
+    }
+  ],
+  "engines": {
+    "llama": [
+      { "kind": "llama", "version": "b7012", "backend": "cuda", "binary": "F:\\OM\\engines\\llama\\b7012-cuda\\llama-server.exe", "dir": "F:\\OM\\engines\\llama\\b7012-cuda", "source": "github" }
+    ],
+    "sd": [],
+    "recommended": ["cuda", "vulkan", "cpu"],
+    "strata": { "version": "0.1.55", "launcher": "F:\\OM\\engines\\strata\\terminal\\0.1.55\\bin\\strata.cmd", "dir": "F:\\OM\\engines\\strata\\terminal\\0.1.55" },
+    "strata_available": true,
+    "strata_data_dir": "F:\\OM\\engines\\strata"
+  },
+  "py_engines": [
+    { "kind": "vllm", "name": "vLLM", "package": "vllm", "unsupported": "linux", "installed": null, "suggested": "default" },
+    { "kind": "mlx", "name": "MLX (mlx-lm)", "package": "mlx-lm", "unsupported": "macos-arm64", "installed": null, "suggested": "default" }
+  ],
+  "strata_packs": {
+    "qwen3.8-flash-next": { "family": "qwen3.8-flash-next", "quants": ["UD-IQ4_XS", "UD-Q4_K_XL"], "mac_limit": null },
+    "qwen3.8-flash-next-ista": { "family": "qwen3.8-flash-next", "quants": ["Q2_0", "IQ2_XS", "IQ3_XXS", "IQ3_S"], "mac_limit": null },
+    "qwen3.6-35b-a3b": { "family": "qwen3.6-35b-a3b", "repo": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF", "quants": ["UD-Q4_K_XL", "UD-Q6_K_XL", "Q8_0"], "mac_limit": "text_64gb" }
+  },
+  "strata_managed": [
+    {
+      "id": "deepseek-v4.1-flash",
+      "name": "DeepSeekV4.1-Flash",
+      "org": "DeepSeek",
+      "origin": "CN",
+      "family": "deepseek-v4.1-flash",
+      "tags": ["chat", "code", "reasoning"],
+      "mac_limit": "text_64gb",
+      "sets": [
+        { "model": "deepseek-v4.1-flash-int4", "label": "INT4", "disk_gb": 148 },
+        { "model": "deepseek-v4.1-flash-int8", "label": "INT8", "disk_gb": 284 }
+      ],
+      "description": {
+        "zh-TW": "Strata 管理的大型 MoE 模型，只能用 Strata 引擎執行；由 Strata 依你的 GPU 與記憶體自動配置。",
+        "en": "A large MoE model managed by Strata and run only by the Strata engine, which places it for your GPU and memory."
+      },
+      "dir": "F:\\OM\\engines\\strata\\models\\deepseek-v4.1-flash"
+    }
+  ],
+  "media_models": [
+    { "id": "z-image-turbo", "name": "Z-Image Turbo", "kind": "image", "edit": false, "image_to_video": false, "hd": false, "quants": ["Q4_K", "Q8_0"], "default_quant": "Q4_K", "steps": 8, "cfg_scale": 1.0, "installed": ["Q4_K"] },
+    { "id": "qwen-image-edit", "name": "Qwen-Image-Edit", "kind": "image", "edit": true, "image_to_video": false, "hd": false, "quants": ["Q4_K", "Q8_0"], "default_quant": "Q4_K", "steps": 20, "cfg_scale": 2.5, "installed": [] },
+    { "id": "wan2.2-ti2v-5b", "name": "Wan2.2 TI2V 5B", "kind": "video", "edit": false, "image_to_video": false, "hd": true, "quants": ["Q4_K", "Q8_0"], "default_quant": "Q4_K", "steps": 30, "cfg_scale": 5.0, "installed": [] }
+  ],
+  "hf_results": [
+    { "id": "unsloth/Qwen3.6-27B-GGUF", "downloads": 412870, "likes": 318, "lastModified": "2026-04-20T08:12:00Z", "gated": false },
+    { "id": "bartowski/Qwen3.6-27B-GGUF", "downloads": 187342, "likes": 126, "lastModified": "2026-04-19T21:40:00Z", "gated": false },
+    { "id": "mradermacher/Qwen3.6-27B-i1-GGUF", "downloads": 41208, "likes": 52, "lastModified": "2026-04-22T03:30:00Z", "gated": false }
+  ],
+  "hf_listing": {
+    "quants": [
+      { "quant": "UD-Q3_K_XL", "total_bytes": 14170316800, "files": [{ "path": "Qwen3.6-27B-UD-Q3_K_XL.gguf", "size": 14170316800 }] },
+      { "quant": "UD-Q4_K_XL", "total_bytes": 17394728960, "files": [{ "path": "Qwen3.6-27B-UD-Q4_K_XL.gguf", "size": 17394728960 }] },
+      { "quant": "Q6_K", "total_bytes": 22338486272, "files": [{ "path": "Qwen3.6-27B-Q6_K.gguf", "size": 22338486272 }] },
+      { "quant": "Q8_0", "total_bytes": 28991029248, "files": [{ "path": "Qwen3.6-27B-Q8_0-00001-of-00002.gguf", "size": 14495514624 }, { "path": "Qwen3.6-27B-Q8_0-00002-of-00002.gguf", "size": 14495514624 }] }
+    ],
+    "mmproj": [{ "path": "mmproj-F16.gguf", "size": 931135488 }]
+  },
+  "net_addrs": [
+    { "name": "Ethernet", "ip": "192.168.1.42" },
+    { "name": "Wi-Fi", "ip": "192.168.1.57" }
+  ]
+}

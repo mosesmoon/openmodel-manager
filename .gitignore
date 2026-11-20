@@ -12,3 +12,8 @@ app/src-tauri/gen/
 
 # Linux packaging caches
 .cache/
+
+# Screenshot tooling output and scratch build
+tools/screenshots/node_modules/
+tools/screenshots/out/
+tools/screenshots/.build/

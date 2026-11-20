@@ -1,0 +1,36 @@
+{
+  "os": "windows",
+  "arch": "x86_64",
+  "cpu_name": "AMD Ryzen 9 7950X 16-Core Processor",
+  "cpu_cores": 16,
+  "cpu_threads": 32,
+  "ram_total": 68719476736,
+  "ram_available": 44873539584,
+  "ram_type": "DDR5",
+  "ram_bandwidth_gbs": 89.6,
+  "ram_speed_mts": 5600,
+  "ram_bus_bits": 128,
+  "ram_bandwidth_detected": true,
+  "gpus": [
+    {
+      "vendor": "nvidia",
+      "name": "NVIDIA GeForce RTX 4090",
+      "vram_total": 25757220864,
+      "vram_free": 24696061952,
+      "driver": "581.42",
+      "unified_memory": false,
+      "bandwidth_gbs": 1008
+    }
+  ],
+  "model_disk": {
+    "mount": "F:\\",
+    "total": 2000263577600,
+    "available": 1286143991808,
+    "is_ssd": true,
+    "bus": "nvme",
+    "pcie_gen": 4,
+    "pcie_lanes": 4,
+    "read_bps": 6800000000
+  },
+  "recommended_backends": ["cuda", "vulkan", "cpu"]
+}

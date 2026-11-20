@@ -11,9 +11,11 @@ This file records the changes in each version, loosely following [Keep a Changel
 
 ### 新增
 - 「模型 → 推薦」最上方顯示偵測到的硬體環境：這台電腦適合多大的模型、顯示卡／記憶體／硬碟的容量條，以及「重新偵測硬體」。
+- 對話與 Agent 頁的回覆會顯示 Markdown：標題、清單、表格、連結，以及附語言標示與複製按鈕的程式碼區塊。模型輸出的 HTML 只會當成文字顯示；連結用系統瀏覽器開啟，不會載入遠端圖片。
 - 模型卡預設依推薦度由高到低排列；國家選單右邊新增排序選單，可依推薦度、名稱、模型大小排序，選單最上方可切換升冪或降冪。
 
 ### 變更
+- JIT 判斷第二個模型能否並存時，改看規劃所用那張顯示卡的剩餘 VRAM；Linux 上的 AMD／Intel 獨立顯示卡，以及共用記憶體的機器（Apple Silicon、APU，依可用記憶體判斷）現在也能並存。讀不到時仍先卸載既有模型。
 - 速度估算改用偵測到的記憶體頻寬：讀取每支記憶體的實際速度（MT/s）與通道數，算出頻寬（例如 DDR5-5600 雙通道約 90 GB/s、單通道只有一半）。以前 Windows / Linux 一律當作 60 GB/s。內建顯示卡（APU）也改用這個頻寬。讀不到時依記憶體類型給典型值，「概覽」頁會標示「估計」。
 - 模型硬碟會分辨 NVMe（含 PCIe 世代與通道數，例如 PCIe 4.0 x4 約 6.7 GB/s）、SATA SSD、USB、Thunderbolt 與 HDD，用來估算載入時間與從硬碟讀取時的速度。以前所有 SSD 都當作 1.5 GB/s。
 - 「概覽」頁顯示記憶體速度、通道數與硬碟的連接方式與讀取速度；`openmodel hw` 也一樣。
@@ -24,9 +26,11 @@ This file records the changes in each version, loosely following [Keep a Changel
 
 ### Added
 - Models → Recommended now opens with the detected hardware: how large a model this computer suits, a capacity bar for GPU, RAM and disk, and "Detect hardware again".
+- Replies on the Chat and Agent pages render Markdown: headings, lists, tables, links, and code blocks with a language label and a Copy button. HTML in model output is shown as text; links open in the system browser and remote images are not loaded.
 - Model cards are listed best recommendation first, and a sort menu next to the country filter orders them by recommendation, name or model size, with ascending and descending at the top of the menu.
 
 ### Changed
+- When JIT decides whether a second model can stay loaded, it now looks at the free VRAM of the GPU planning uses; AMD and Intel discrete GPUs on Linux and unified-memory machines (Apple Silicon and APUs, judged by available RAM) can now keep two models too. When nothing can be read, the loaded model is still unloaded first.
 - Speed estimates use the detected memory bandwidth: the running speed (MT/s) and channel count of the installed memory give the bandwidth (dual-channel DDR5-5600 is about 90 GB/s; a single channel is half that). Windows and Linux used to assume 60 GB/s. Integrated GPUs (APUs) use this bandwidth too. When it can't be read, a typical value for the memory type is used and the Overview page marks it as typical.
 - The model drive is identified as NVMe (with its PCIe generation and lanes; PCIe 4.0 x4 is about 6.7 GB/s), SATA SSD, USB, Thunderbolt or hard disk, for load-time and disk-read estimates. Every SSD used to count as 1.5 GB/s.
 - The Overview page shows the memory speed and channels, and the drive's connection and read speed; so does `openmodel hw`.

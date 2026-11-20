@@ -289,14 +289,24 @@ async fn load(state: &AppState, wanted: &str) -> Res<u16> {
         launch_llama(state, &state.llm, &opts, machine).await?;
         return Ok(state.llm.status().port);
     }
-    // Something is loaded: keep it only if the new model fits in the free VRAM.
+    // Something is loaded: keep it only if the new model fits beside it. The
+    // counter that decides is the one of the GPU planning uses (a laptop's
+    // iGPU may be listed first); unified memory is judged by free RAM. Without
+    // a match nothing is known, so the loaded models are unloaded first.
     let (shape, _, mmproj) = shape_for_file(&opts.path, opts.vision).map_err(errs)?;
-    let need = tiering::plan(&shape, &machine, &PlanOptions { safe_level: 0, ..base_options(&s, &opts, mmproj) }).gpu_bytes;
-    let free = tokio::task::spawn_blocking(hardware::live_vram).await.unwrap_or_default().first().map(|(_, used, total)| total.saturating_sub(*used)).unwrap_or(0);
-    if need > 0 && free >= need + machine.vram_reserve {
+    let plan = tiering::plan(&shape, &machine, &PlanOptions { safe_level: 0, ..base_options(&s, &opts, mmproj) });
+    let gpu = state.hardware(false).await.primary_gpu().map(|g| g.name.clone());
+    let (live, ram_now) = tokio::task::spawn_blocking(|| (hardware::live_vram(), hardware::available_ram())).await.unwrap_or_default();
+    let free = gpu.as_deref().and_then(|n| hardware::vram_of_gpu(&live, n)).map(|(used, total)| total.saturating_sub(used));
+    if hardware::second_model_fits(machine.unified_memory, plan.gpu_bytes, plan.ram_bytes, free, machine.vram_reserve, ram_now, machine.ram_reserve) {
         let server = ManagedServer::new();
         let mut room = machine.clone();
-        room.vram_bytes = free;
+        if machine.unified_memory {
+            room.ram_available = ram_now;
+            room.vram_bytes = machine.vram_bytes.min(ram_now.saturating_sub(machine.ram_reserve));
+        } else {
+            room.vram_bytes = free.unwrap_or(0);
+        }
         launch_llama(state, &server, &opts, room).await?;
         let port = server.status().port;
         state.jit.extra.lock().unwrap().push(Extra { path: model.path, server });

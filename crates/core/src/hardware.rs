@@ -258,7 +258,11 @@ impl HardwareReport {
     }
 }
 
-/// Live VRAM usage per GPU (bytes used, bytes total), for the stats panel.
+/// Live VRAM usage per GPU (bytes used, bytes total), for the stats panel and
+/// the JIT gateway. NVIDIA comes from nvidia-smi, AMD / Intel on Linux from
+/// sysfs; Windows AMD / Intel and macOS report nothing (no dependable counter
+/// without extra tools). Unified-memory GPUs are judged by free RAM instead,
+/// see [`second_model_fits`].
 pub fn live_vram() -> Vec<(String, u64, u64)> {
     #[allow(unused_mut)]
     let mut out: Vec<(String, u64, u64)> = run(
@@ -275,20 +279,93 @@ pub fn live_vram() -> Vec<(String, u64, u64)> {
     })
     .unwrap_or_default();
     #[cfg(target_os = "linux")]
-    if let Ok(rd) = std::fs::read_dir("/sys/class/drm") {
-        for e in rd.flatten() {
+    out.extend(sysfs_vram(Path::new("/sys/class/drm"), &lspci_name));
+    out
+}
+
+/// Used / total VRAM of the AMD and Intel cards under a DRM sysfs directory
+/// (`/sys/class/drm`). Cards without both counters are skipped. Names follow
+/// the detection rules (`product_name`, then `lspci_name`) so an entry can be
+/// matched to the [`GpuInfo`] planning uses.
+pub fn sysfs_vram(drm: &Path, lspci_name: &dyn Fn(&Path) -> Option<String>) -> Vec<(String, u64, u64)> {
+    let Ok(rd) = std::fs::read_dir(drm) else { return vec![] };
+    let mut cards: Vec<_> = rd
+        .flatten()
+        .filter(|e| {
             let n = e.file_name().to_string_lossy().to_string();
-            if !n.starts_with("card") || n.contains('-') {
-                continue;
-            }
-            let dev = e.path().join("device");
-            let num = |f: &str| std::fs::read_to_string(dev.join(f)).ok().and_then(|s| s.trim().parse::<u64>().ok());
-            if let (Some(used), Some(total)) = (num("mem_info_vram_used"), num("mem_info_vram_total")) {
-                out.push((n, used, total));
-            }
+            n.starts_with("card") && !n.contains('-')
+        })
+        .collect();
+    cards.sort_by_key(|e| e.file_name());
+    let mut out = vec![];
+    for e in cards {
+        let dev = e.path().join("device");
+        let read = |f: &str| std::fs::read_to_string(dev.join(f)).ok().map(|s| s.trim().to_string());
+        let num = |f: &str| read(f).and_then(|s| s.parse::<u64>().ok());
+        let vendor = match read("vendor").as_deref() {
+            Some("0x1002") => GpuVendor::Amd,
+            Some("0x8086") => GpuVendor::Intel,
+            _ => continue, // NVIDIA comes from nvidia-smi
+        };
+        if let (Some(used), Some(total)) = (num("mem_info_vram_used"), num("mem_info_vram_total")) {
+            out.push((sysfs_gpu_name(&dev, vendor, lspci_name), used, total));
         }
     }
     out
+}
+
+/// Display name of a sysfs card; shared by detection and `sysfs_vram`.
+fn sysfs_gpu_name(dev: &Path, vendor: GpuVendor, lspci_name: &dyn Fn(&Path) -> Option<String>) -> String {
+    std::fs::read_to_string(dev.join("product_name"))
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| lspci_name(dev))
+        .unwrap_or_else(|| format!("{:?} GPU", vendor))
+}
+
+/// The `live_vram` entry for the GPU planning uses, matched by name. Equal
+/// names (two identical cards) are ambiguous, so the one with less room
+/// counts. None when nothing matches: the caller must not guess.
+pub fn vram_of_gpu(live: &[(String, u64, u64)], gpu_name: &str) -> Option<(u64, u64)> {
+    let want = gpu_name.trim();
+    live.iter()
+        .filter(|(n, _, total)| n.trim().eq_ignore_ascii_case(want) && *total > 0)
+        .map(|(_, used, total)| (*used, *total))
+        .min_by_key(|(used, total)| total.saturating_sub(*used))
+}
+
+/// Memory the OS can hand out right now (bytes), read fresh: the cached
+/// report's `ram_available` is stale once a model is loaded.
+pub fn available_ram() -> u64 {
+    let mut sys = sysinfo::System::new();
+    sys.refresh_memory();
+    sys.available_memory()
+}
+
+/// Can a second model stay loaded beside the running one?
+///
+/// Discrete GPU: `gpu_free` (live VRAM free, None = unknown) must hold the
+/// plan's GPU part plus the VRAM reserve. Unified memory (Apple Silicon,
+/// APUs): the GPU has no VRAM counter of its own, the weights live in system
+/// RAM, so the room is `ram_available - ram_reserve` and the whole plan
+/// (GPU part plus RAM part) must fit in it. A plan with no GPU part never fits.
+pub fn second_model_fits(
+    unified: bool,
+    need_gpu: u64,
+    need_ram: u64,
+    gpu_free: Option<u64>,
+    vram_reserve: u64,
+    ram_available: u64,
+    ram_reserve: u64,
+) -> bool {
+    if need_gpu == 0 {
+        return false;
+    }
+    if unified {
+        return need_gpu.saturating_add(need_ram) <= ram_available.saturating_sub(ram_reserve);
+    }
+    gpu_free.is_some_and(|free| free >= need_gpu.saturating_add(vram_reserve))
 }
 
 /// Installed memory modules, plus the memory type when only that is known
@@ -858,10 +935,7 @@ fn linux_sysfs_gpus(ram_total: u64) -> Vec<GpuInfo> {
         let vram: u64 = read(dev.join("mem_info_vram_total")).and_then(|s| s.parse().ok()).unwrap_or(0);
         let vram_used: Option<u64> = read(dev.join("mem_info_vram_used")).and_then(|s| s.parse().ok());
         let gtt: u64 = read(dev.join("mem_info_gtt_total")).and_then(|s| s.parse().ok()).unwrap_or(0);
-        let pretty = read(dev.join("product_name"))
-            .filter(|s| !s.is_empty())
-            .or_else(|| lspci_name(&dev))
-            .unwrap_or_else(|| format!("{:?} GPU", vendor));
+        let pretty = sysfs_gpu_name(&dev, vendor, &lspci_name);
         // APU heuristic: small carve-out VRAM with a large GTT window.
         let unified = vram < 4 * crate::config::GIB && gtt > vram;
         let usable = if unified { (vram + gtt).min(ram_total * 3 / 4) } else { vram };
@@ -1127,6 +1201,83 @@ Handle 0x0042, DMI type 17, 92 bytes\nMemory Device\n\tData Width: 64 bits\n\tSi
         let l = parse_diskutil("   Device Node:              /dev/disk3s5\n   Protocol:                 Apple Fabric\n   Solid State:              Yes\n");
         assert_eq!((l.bus, l.ssd), (Some(DiskBus::Apple), Some(true)));
         assert_eq!(parse_diskutil("   Protocol:                 USB\n   Solid State:              No\n").ssd, Some(false));
+    }
+
+    fn fake_card(drm: &Path, card: &str, vendor: &str, vram: Option<(&str, &str)>, name: Option<&str>) {
+        let dev = drm.join(card).join("device");
+        std::fs::create_dir_all(&dev).unwrap();
+        std::fs::write(dev.join("vendor"), format!("{vendor}\n")).unwrap();
+        if let Some((used, total)) = vram {
+            std::fs::write(dev.join("mem_info_vram_used"), used).unwrap();
+            std::fs::write(dev.join("mem_info_vram_total"), total).unwrap();
+        }
+        if let Some(n) = name {
+            std::fs::write(dev.join("product_name"), format!("{n}\n")).unwrap();
+        }
+    }
+
+    #[test]
+    fn sysfs_vram_two_cards() {
+        let t = tempfile::tempdir().unwrap();
+        let drm = t.path();
+        fake_card(drm, "card0", "0x8086", Some(("1000000\n", "2000000\n")), Some("Intel Arc A380"));
+        fake_card(drm, "card1", "0x1002", Some(("4000000000", "17163091968")), None);
+        // Connector entries, cards without counters and other vendors are skipped.
+        std::fs::create_dir_all(drm.join("card1-DP-1")).unwrap();
+        fake_card(drm, "card2", "0x1002", None, Some("No counters"));
+        fake_card(drm, "card3", "0x10de", Some(("1", "2")), Some("NVIDIA"));
+        let v = sysfs_vram(drm, &|_| Some("Navi 48 [Radeon RX 9070]".into()));
+        assert_eq!(
+            v,
+            vec![
+                ("Intel Arc A380".to_string(), 1_000_000, 2_000_000),
+                ("Navi 48 [Radeon RX 9070]".to_string(), 4_000_000_000, 17_163_091_968),
+            ]
+        );
+        // Without product_name or lspci the name still identifies the vendor.
+        assert_eq!(sysfs_vram(drm, &|_| None)[1].0, "Amd GPU");
+    }
+
+    #[test]
+    fn sysfs_vram_garbage_and_missing() {
+        let t = tempfile::tempdir().unwrap();
+        assert!(sysfs_vram(&t.path().join("nope"), &|_| None).is_empty());
+        fake_card(t.path(), "card0", "0x1002", Some(("lots", "17163091968")), Some("Bad used"));
+        fake_card(t.path(), "card1", "0x1002", Some(("-5", "")), Some("Bad both"));
+        fake_card(t.path(), "card2", "garbage", Some(("1", "2")), Some("Bad vendor"));
+        assert!(sysfs_vram(t.path(), &|_| None).is_empty());
+    }
+
+    #[test]
+    fn matches_primary_gpu_by_name() {
+        let live = vec![
+            ("AMD Radeon Graphics".to_string(), 1 << 30, 2 << 30),
+            ("NVIDIA GeForce RTX 3080 Ti".to_string(), 2 << 30, 12 << 30),
+        ];
+        assert_eq!(vram_of_gpu(&live, " nvidia geforce rtx 3080 ti "), Some((2 << 30, 12 << 30)));
+        assert_eq!(vram_of_gpu(&live, "Apple M3"), None);
+        assert_eq!(vram_of_gpu(&[], "x"), None);
+        // Two identical cards: the fuller one decides.
+        let twin = vec![("GPU".to_string(), 1, 10), ("GPU".to_string(), 8, 10)];
+        assert_eq!(vram_of_gpu(&twin, "GPU"), Some((8, 10)));
+        // A card that reports no total is not usable.
+        assert_eq!(vram_of_gpu(&[("GPU".to_string(), 0, 0)], "GPU"), None);
+    }
+
+    #[test]
+    fn second_model_decision() {
+        const G: u64 = 1 << 30;
+        // Discrete: free VRAM must hold the plan plus the reserve; unknown never fits.
+        assert!(second_model_fits(false, 4 * G, 0, Some(5 * G), G / 2, 0, 4 * G));
+        assert!(!second_model_fits(false, 4 * G, 0, Some(4 * G), G / 2, 64 * G, 4 * G));
+        assert!(!second_model_fits(false, 4 * G, 0, None, G / 2, 64 * G, 4 * G));
+        // Unified: free RAM minus the reserve against the GPU and RAM parts together.
+        assert!(second_model_fits(true, 6 * G, 2 * G, None, G / 2, 12 * G, 4 * G));
+        assert!(!second_model_fits(true, 6 * G, 3 * G, None, G / 2, 12 * G, 4 * G));
+        assert!(!second_model_fits(true, 6 * G, 0, None, G / 2, 3 * G, 4 * G));
+        // No GPU part planned: nothing to keep resident beside.
+        assert!(!second_model_fits(true, 0, 2 * G, None, G / 2, 64 * G, 4 * G));
+        assert!(!second_model_fits(false, 0, 0, Some(8 * G), 0, 0, 0));
     }
 
     #[cfg(unix)]

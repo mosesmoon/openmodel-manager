@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApprovalRequest, ChatEvent, Endpoint, errText, Message, on } from "../api";
 import { useApp } from "../App";
 import { useI18n } from "../i18n";
+import { Markdown } from "../markdown";
 
 type Item =
   | { kind: "user"; text: string; images: string[] }
@@ -225,7 +226,7 @@ function ItemView({ it }: { it: Item }) {
               <div style={{ whiteSpace: "pre-wrap" }}>{it.reasoning}</div>
             </details>
           )}
-          {it.text}
+          {it.text && <Markdown text={it.text} />}
         </div>
       );
     case "tool":
