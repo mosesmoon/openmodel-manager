@@ -22,10 +22,13 @@ An open-source, cross-platform (Windows / Linux / macOS) manager for local AI mo
   - Filter recommendations by capability (chat / code / vision / reasoning), by country of origin (🇺🇸 🇨🇳 🇫🇷 …), or by Strata support.
   - Search Hugging Face directly.
   - Downloads resume, and you can set your own mirror and token.
+  - The Recommended tab opens with the detected hardware and the model size it suits; models are listed best recommendation first and can be sorted by name or size.
 - **Crash recovery**: when a model fails to load, it works out why and retries automatically in compatibility mode.
 - **Chat** with local models or an AI service provider:
   - Providers: Anthropic, OpenAI, Google AI Studio, xAI Grok, NVIDIA NIM, or any OpenAI-compatible API.
   - Tool calls, image input, and visible reasoning.
+  - Replies render Markdown (tables, code blocks with a Copy button).
+  - Chat history is saved on this computer; continue or delete a conversation, or turn saving off in Settings.
 - **Agent**: reads and writes files and runs commands inside a workspace folder you choose, with a visible step list.
 - **AI image and video generation**: Z-Image, FLUX.2 klein, FLUX.1 schnell, Qwen-Image, Wan2.2 and more.
 - **OpenAI-compatible API**: other apps and agents (such as Hermes Agent) can use the model you start. You can set an API key (or leave it blank) and choose which network cards to open it on. With JIT on, the API lists your downloaded models even when none is running and loads the one a request asks for.
@@ -155,6 +158,7 @@ Packaging scripts live in [`packaging/`](packaging/):
 | Script | Output |
 |---|---|
 | `packaging/windows-portable.ps1` | Windows portable zip |
+| `tools/screenshots/` | Retakes the README screenshots from mock data |
 | `packaging/linux/build.sh` | AppImage, deb and Flatpak, built in an Ubuntu 22.04 container |
 | `packaging/macos/build.sh` | Universal macOS DMG (run on a Mac) |
 

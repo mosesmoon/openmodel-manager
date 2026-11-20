@@ -7,7 +7,7 @@ This file records the changes in each version, loosely following [Keep a Changel
 > Beta 版的程式內版本號仍是 0.1.0，安裝檔檔名也是 `0.1.0`，正式發行 0.1.1 時才會更新。
 > Beta builds still carry version 0.1.0 inside the app and in the installer file names; it changes at the 0.1.1 release.
 
-## [Unreleased]
+## [0.1.1-beta.6] - 2026-11-21
 
 ### 新增
 - 「模型 → 推薦」最上方顯示偵測到的硬體環境：這台電腦適合多大的模型、顯示卡／記憶體／硬碟的容量條，以及「重新偵測硬體」。
@@ -195,6 +195,7 @@ Summary in English:
 - **Packaging**: Windows MSI and portable zip, Linux AppImage/deb/Flatpak, macOS DMG.
 - **Docs**: README in Traditional Chinese and English, with screenshots of every page.
 
+[0.1.1-beta.6]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.5...v0.1.1-beta.6
 [0.1.1-beta.5]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.4...v0.1.1-beta.5
 [0.1.1-beta.4]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.3...v0.1.1-beta.4
 [0.1.1-beta.3]: https://github.com/mosesmoon/openmodel-manager/compare/v0.1.1-beta.2...v0.1.1-beta.3

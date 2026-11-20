@@ -18,9 +18,9 @@
   - [Strata](https://github.com/Niko1221/Strata)：超大 MoE 模型（例如 DeepSeek），支援 Mac 與 AMD GPU。
   - [vLLM](https://github.com/vllm-project/vllm)：Linux，NVIDIA CUDA 或 AMD ROCm。
   - [MLX](https://github.com/ml-explore/mlx-lm)：macOS Apple Silicon。
-- **模型目錄**：推薦清單可依能力（chat / code / vision / reasoning）、來源國家（🇺🇸 🇨🇳 🇫🇷 …）和 Strata 支援篩選，也能直接搜尋 Hugging Face。下載可續傳，鏡像與 token 可自訂。
+- **模型目錄**：推薦清單可依能力（chat / code / vision / reasoning）、來源國家（🇺🇸 🇨🇳 🇫🇷 …）和 Strata 支援篩選，也能直接搜尋 Hugging Face。下載可續傳，鏡像與 token 可自訂。推薦頁最上方會顯示偵測到的硬體與適合的模型大小，模型依推薦度排序，也可改依名稱或大小排序。
 - **崩潰自動處理**：載入失敗時會判斷原因，並自動用相容模式重試。
-- **對話**：可接本機模型或 AI 服務供應商，包括 Anthropic、OpenAI、Google AI Studio、xAI Grok、NVIDIA NIM 及任何 OpenAI 相容 API。支援工具呼叫、圖片輸入、顯示思考過程。
+- **對話**：可接本機模型或 AI 服務供應商，包括 Anthropic、OpenAI、Google AI Studio、xAI Grok、NVIDIA NIM 及任何 OpenAI 相容 API。支援工具呼叫、圖片輸入、顯示思考過程。回覆以 Markdown 顯示（表格、程式碼區塊可複製）；對話紀錄會存在本機，可繼續或刪除，也可在設定關閉。
 - **Agent**：在指定的工作資料夾內讀寫檔案、執行指令，每一步都有清單可看。
 - **AI 生成圖片 / 影片**：Z-Image、FLUX.2 klein、FLUX.1 schnell、Qwen-Image、Wan2.2 等。
 - **OpenAI 相容 API**：啟動的模型可以給其他程式和 Agent（例如 Hermes Agent）使用。可設定 API key（也可留空），並勾選要開放的網路卡。開啟 JIT 後，沒有執行模型時 API 仍會列出已下載的模型，呼叫時自動掛載。
@@ -146,6 +146,7 @@ npx tauri build                              # 產生安裝檔（target/release/
 | 腳本 | 產出 |
 |---|---|
 | `packaging/windows-portable.ps1` | Windows 免安裝 zip |
+| `tools/screenshots/` | 用模擬資料重拍 README 截圖的工具 |
 | `packaging/linux/build.sh` | 在 Ubuntu 22.04 容器內建 AppImage、deb、Flatpak |
 | `packaging/macos/build.sh` | macOS 通用版 DMG（要在 Mac 上執行） |
 
